@@ -23,7 +23,8 @@ class CamBuilder:
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
                  transform_fn: Callable[[np.ndarray], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 model_output_index: int = None, seed: int = 11):
+                 ignore_channel_dim: bool = False, is_binary: bool = False, model_output_index: int = None,
+                 extend_search: bool = False, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -40,8 +41,14 @@ class CamBuilder:
             represented as the first or second dimension of the input array.
         :param input_transposed: (optional, default is False) A boolean indicating whether the input array is transposed
             during model inference, either by the model itself or by the preprocessing function.
+        :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
+            dimension. This is useful when the model expects inputs without a singleton channel dimension.
+        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
+            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
@@ -54,36 +61,45 @@ class CamBuilder:
         self.model = model
         self.transform_fn = transform_fn
         self.class_names = class_names
-        self.aspect_factor = 100
+        self.extend_search = extend_search
 
         self.time_axs = time_axs
         self.input_transposed = input_transposed
+        self.ignore_channel_dim = ignore_channel_dim
         self.model_output_index = model_output_index
+        self.is_binary = is_binary
 
         self.gradients = None
         self.activations = None
 
         # Show available explainers
         print()
-        print("Available explainers:")
+        print("====================================================================================================")
+        print("                                      Executing SignalGrad-CAM                                      ")
+        print("====================================================================================================")
+        print()
+        print("AVAILABLE EXPLAINERS:")
         for k, v in self.explainer_types.items():
             print(f" - Explainer identifier '{k}': {v}")
 
         # Show available 1D or 2D convolutional layers
         print()
-        print("Please, verify that your network contains at least one 1D or 2D convolutional layer and note the names",
-              "of the layers that are of interest to you. If the desired layer is not present in the following list,",
-              "it can still be accessed by the name used in the network to identify it.\nVerify whether the model ",
-              "ends with an activation function from the Sigmoid family (such as Sigmoid o Softmax). Even if this",
-              "activation function is not present in the following list, ensure to check if it is applied at the end",
-              "of the network.\nFOUND NETWORK LAYERS (name: type)")
-        self._get_layers_pool(show=True)
+        print("SEARCHING FOR NETWORK LAYERS:")
+        print("Please, verify that your network contains at least one 1D or 2D convolutional layer and note the names\n",
+              "of the layers that are of interest to you. If the desired layer is not present in the following list,\n",
+              "it can still be accessed by the name used in the network to identify it.\nVerify whether the model \n",
+              "ends with an activation function from the Sigmoid family (such as Sigmoid o Softmax). Even if this\n",
+              "activation function is not present in the following list, ensure to check if it is applied at the end\n",
+              "of the network. Please make sure that the provided model is set in inference ('eval') mode for PyTorch\n",
+              "models and that TensorFlow/Keras models have been built (they must have the specific 'inputs' and\n"
+              "'output' attributes)\nNetwork layers found (name: type)")
+        self._get_layers_pool(show=True, extend_search=extend_search)
         print()
 
     def get_cam(self, data_list: List[np.ndarray], data_labels: List[int], target_classes: int | List[int],
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
                 data_names: List[str] = None, data_sampling_freq: float = None, dt: float = 10,
-                channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = None,
+                channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = 100,
                 data_shape_list: List[Tuple[int, int]] = None, time_names: List[str | float] = None,
                 axes_names: Tuple[str | None, str | None] | List[str | None] = None) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
@@ -115,7 +131,7 @@ class CamBuilder:
             signal channel for tick settings.
         :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
-        :param aspect_factor: (optional, default is None) A numerical value to set the aspect ratio of the output signal
+        :param aspect_factor: (optional, default is 100) A numerical value to set the aspect ratio of the output signal
             one-dimensional CAM.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
@@ -141,9 +157,6 @@ class CamBuilder:
         # Check input types
         target_classes, explainer_types, target_layers = self.__check_input_types(target_classes, explainer_types,
                                                                                   target_layers)
-
-        self.aspect_factor = aspect_factor if aspect_factor is not None else self.aspect_factor
-
         for explainer_type in explainer_types:
             if explainer_type not in self.explainer_types:
                 raise ValueError("'explainer_types' should be an explainer identifier or a list of explainer "
@@ -164,8 +177,8 @@ class CamBuilder:
                     predicted_probs_dict.update({item_key: output_probs})
                     bar_ranges_dict.update({item_key: bar_ranges})
                     self.__display_output(data_labels, target_class, explainer_type, target_layer, cam_list, output_probs,
-                                          results_dir_path, data_names, data_sampling_freq, dt, bar_ranges, channel_names,
-                                          time_names=time_names, axes_names=axes_names)
+                                          results_dir_path, data_names, data_sampling_freq, dt, aspect_factor,
+                                          bar_ranges, channel_names, time_names=time_names, axes_names=axes_names)
 
         return cams_dict, predicted_probs_dict, bar_ranges_dict
 
@@ -385,13 +398,16 @@ class CamBuilder:
                         self.__display_plot(results_dir_path, explainer_type, target_layer, target_class, data_name,
                                             is_channel=True)
 
-    def _get_layers_pool(self, show: bool = False) -> Dict[str, torch.nn.Module | tf.keras.layers.Layer | Any]:
+    def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
+            -> Dict[str, torch.nn.Module | tf.keras.layers.Layer | Any]:
         """
         Retrieves a dictionary containing all the available PyTorch or TensorFlow/Keras layers (or instance attributes),
         with the layer (or attribute) names used as keys.
 
         :param show: (optional, default is False) A boolean flag indicating whether to display the retrieved layers
             along with their names.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
 
         :return:
             - layers_pool: A dictionary storing the model's PyTorch or TensorFlow/Keras layers (or instance attributes),
@@ -416,7 +432,7 @@ class CamBuilder:
             a layer (i.e., a generic instance attribute, not guaranteed to be a layer).
         """
 
-        addon = "POTENTIAL LAYER " if potential else ""
+        addon = "(potential layer) " if potential else ""
         txt = " - " + addon + f"{name}:\t{type(layer).__name__}"
         print(txt)
 
@@ -510,7 +526,7 @@ class CamBuilder:
         """
 
         # Select target layer
-        layers_pool = self._get_layers_pool()
+        layers_pool = self._get_layers_pool(extend_search=self.extend_search)
         target_layer = layers_pool[target_layer]
 
         # Preprocess data
@@ -531,6 +547,8 @@ class CamBuilder:
         self.gradients = None
         cams = np.stack(cam_list)
         cam_list, bar_ranges = self.__adjust_maps(cams, data_shape_list, self._is_2d_layer(target_layer))
+        if self.is_binary:
+            cam_list = [255 - cam for cam in cam_list]
         return cam_list, target_probs, bar_ranges
 
     def __adjust_maps(self, cams: np.ndarray, data_shape_list: List[Tuple[int, int]], is_2d_layer: bool) \
@@ -577,14 +595,14 @@ class CamBuilder:
     def __display_output(self, data_labels: List[int], target_class: int, explainer_type: str, target_layer: str,
                          cam_list: List[np.ndarray], predicted_probs: np.ndarray, results_dir_path: str,
                          data_names: List[str], data_sampling_freq: float = None, dt: float = 10,
-                         bar_ranges: Tuple[np.ndarray, np.ndarray] = None, channel_names: List[str | float] = None,
-                         time_names: List[str | float] = None, axes_names: Tuple[str | None, str | None] = None) \
-            -> None:
+                         aspect_factor: float = 100, bar_ranges: Tuple[np.ndarray, np.ndarray] = None,
+                         channel_names: List[str | float] = None, time_names: List[str | float] = None,
+                         axes_names: Tuple[str | None, str | None] = None) -> None:
         """
         Create plots displaying the obtained CAMs, set their axes, and show them as multiple figures or as ".png" files.
 
         :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
-        :param target_class: (mandatory) An integer representing the target classe for the explanation.
+        :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param explainer_type: (mandatory) A string representing the desired algorithm for the explanation. This string
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
@@ -602,6 +620,8 @@ class CamBuilder:
             signal inputs in samples per second.
         :param dt: (optional, default is 10) A numerical value representing the granularity of the time axis in seconds
             in the output display.
+        :param aspect_factor: (optional, default is 100) A numerical value to set the aspect ratio of the output signal
+            one-dimensional CAM.
         :param bar_ranges: A tuple containing two np.ndarrays, corresponding to the minimum and maximum importance scores
             per CAM for each item in the input data list, based on a given setting (defined by algorithm, target
             layer, and target class).
@@ -615,7 +635,7 @@ class CamBuilder:
         if not os.path.exists(results_dir_path):
             os.makedirs(results_dir_path)
 
-        is_2d_layer = self._is_2d_layer(self._get_layers_pool()[target_layer])
+        is_2d_layer = self._is_2d_layer(self._get_layers_pool(extend_search=self.extend_search)[target_layer])
 
         n_cams = len(cam_list)
         for i in range(n_cams):
@@ -627,7 +647,7 @@ class CamBuilder:
             norm = self.__get_norm(map)
 
             if map.shape[1] == 1:
-                aspect = int(map.shape[0] / self.aspect_factor)
+                aspect = int(map.shape[0] / aspect_factor)
                 map = np.transpose(map)
             else:
                 if is_2d_layer:
@@ -675,7 +695,7 @@ class CamBuilder:
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
             used to retrieve the layer from the class attributes.
-        :param target_class: (mandatory) An integer representing the target classe for the explanation.
+        :param target_class: (mandatory) An integer representing the target class for the explanation.
 
         :return:
             - cam: The CAM for the given setting (defined by algorithm, target layer, and target class), corresponding
@@ -764,7 +784,7 @@ class CamBuilder:
         Builds the CAM title for a given item and target class.
 
         :param item_name: (mandatory) A string representing the name of an input item.
-        :param target_class: (mandatory) An integer representing the target classe for the explanation.
+        :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
@@ -777,7 +797,7 @@ class CamBuilder:
             - title: A string representing the title of the CAM for a given item and target class.
         """
 
-        title = ("'" + item_name + "': CAM for class " + self.class_names[target_class] + " (confidence = " +
+        title = ("'" + item_name + "': CAM for class '" + self.class_names[target_class] + "' (confidence = " +
                  str(np.round(predicted_probs[item_key][batch_idx] * 100, 2)) + "%) - true class " +
                  self.class_names[data_labels[batch_idx]])
         return title
@@ -794,7 +814,7 @@ class CamBuilder:
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
             used to retrieve the layer from the class attributes.
-        :param target_class: (mandatory) An integer representing the target classe for the explanation.
+        :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param item_name: (optional, default is False) A string representing the name of an input item.
         :param is_channel: (optional, default is False) A boolean flag indicating whether the figure represents graphs
             of multiple input channels, to discriminate it from other display modalities.
@@ -819,10 +839,15 @@ class CamBuilder:
                     os.mkdir(filepath)
             filename = (name_addon + explainer_type + "_" + re.sub(r"\W", "_", target_layer) + "_class" +
                         str(target_class) + ".png")
+
+            # Communicate outcome
             descr_addon1 = "for item '" + item_name + "' " if item_name is not None else ""
-            print("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
-                  self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type +
-                  ") as '" + filename + "'...")
+            msg = ("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
+                   self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type +
+                   ") as '" + filename + "'...")
+            msg = "\n".join(msg[i:i + 100] for i in range(0, len(msg), 100))
+            print(msg)
+
             plt.savefig(os.path.join(filepath, filename), format="png", bbox_inches="tight", pad_inches=0,
                         dpi=500)
             plt.close()

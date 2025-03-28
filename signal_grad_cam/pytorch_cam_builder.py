@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from typing import Callable, List, Tuple, Dict, Any
 
-from easy_grad_cam import CamBuilder
+from signal_grad_cam import CamBuilder
 
 
 # Class
@@ -14,7 +14,9 @@ class TorchCamBuilder(CamBuilder):
     """
 
     def __init__(self, model: nn.Module | Any, transform_fn: Callable = None, class_names: List[str] = None,
-                 time_axs: int = 1, input_transposed: bool = False, model_output_index: int = None, seed: int = 11):
+                 time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
+                 is_binary: bool = False, model_output_index: int = None, extend_search: bool = False,
+                 use_gpu: bool = False, seed: int = 11):
         """
         Initializes the TorchCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -31,15 +33,26 @@ class TorchCamBuilder(CamBuilder):
             represented as the first or second dimension of the input array.
         :param input_transposed: (optional, default is False) A boolean indicating whether the input array is transposed
             during model inference, either by the model itself or by the preprocessing function.
+        :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
+            dimension. This is useful when the model expects inputs without a singleton channel dimension.
+        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
+            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
+        :param use_gpu: (optional, default is False) A boolean flag indicating whether to use GPU for data processing,
+            if GPU is available.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
 
         # Initialize attributes
-        super(TorchCamBuilder, self).__init__(model, transform_fn, class_names, time_axs, input_transposed,
-                                              model_output_index, seed=seed)
+        super(TorchCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
+                                              time_axs=time_axs, input_transposed=input_transposed,
+                                              ignore_channel_dim=ignore_channel_dim, is_binary=is_binary,
+                                              model_output_index=model_output_index, extend_search=extend_search,
+                                              seed=seed)
 
         # Set seeds
         torch.manual_seed(seed)
@@ -54,18 +67,22 @@ class TorchCamBuilder(CamBuilder):
         else:
             print("Your PyTorch model has no 'eval' method. Please verify that the networks has been set to "
                   "evaluation mode before the TorchCamBuilder initialization.")
+        self.use_gpu = use_gpu
 
         # Assign the default transform function
         if transform_fn is None:
             self.transform_fn = self.__default_transform_fn
 
-    def _get_layers_pool(self, show: bool = False) -> Dict[str, torch.nn.Module | Any]:
+    def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
+            -> Dict[str, torch.nn.Module | Any]:
         """
         Retrieves a dictionary containing all the available PyTorch layers (or instance attributes), with the layer (or
         attribute) names used as keys.
 
         :param show: (optional, default is False) A boolean flag indicating whether to display the retrieved layers
             along with their names.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
 
         :return:
             - layers_pool: A dictionary storing the model's PyTorch layers (or instance attributes),
@@ -78,7 +95,10 @@ class TorchCamBuilder(CamBuilder):
                 for name, layer in layers_pool.items():
                     self._show_layer(name, layer)
         else:
-            layers_pool = super()._get_layers_pool(show)
+            layers_pool = super()._get_layers_pool(show=show)
+
+        if extend_search:
+            layers_pool.update(super()._get_layers_pool(show=show))
 
         return layers_pool
 
@@ -127,7 +147,8 @@ class TorchCamBuilder(CamBuilder):
             data_list = [torch.Tensor(x) for x in data_list]
 
         is_2d_layer = self._is_2d_layer(target_layer)
-        if is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer and len(data_list[0].shape) == 1:
+        if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer
+                                            and len(data_list[0].shape) == 1):
             data_list = [x.unsqueeze(0) for x in data_list]
         data_batch = torch.stack(data_list)
 
@@ -143,6 +164,10 @@ class TorchCamBuilder(CamBuilder):
         else:
             target_scores = outputs
             target_probs = torch.softmax(target_scores, dim=1)
+
+        if self.is_binary:
+            target_scores = torch.concat([target_scores, target_scores], dim=1)
+            target_probs = torch.concat([1 - target_probs, target_probs], dim=1)
         target_probs = target_probs[:, target_class].cpu().detach().numpy()
 
         cam_list = []

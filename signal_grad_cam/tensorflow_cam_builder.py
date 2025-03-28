@@ -8,7 +8,7 @@ import keras
 import tensorflow as tf
 from typing import Callable, List, Tuple, Dict, Any
 
-from easy_grad_cam import CamBuilder
+from signal_grad_cam import CamBuilder
 
 
 # Class
@@ -19,7 +19,8 @@ class TfCamBuilder(CamBuilder):
     """
 
     def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable = None, class_names: List[str] = None,
-                 time_axs: int = 1, input_transposed: bool = False, model_output_index: int = None, seed: int = 11):
+                 time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
+                 is_binary: bool = False, model_output_index: int = None, extend_search: bool = False, seed: int = 11):
         """
         Initializes the TfCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -36,26 +37,48 @@ class TfCamBuilder(CamBuilder):
             represented as the first or second dimension of the input array.
         :param input_transposed: (optional, default is False) A boolean indicating whether the input array is transposed
             during model inference, either by the model itself or by the preprocessing function.
+        :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
+            dimension. This is useful when the model expects inputs without a singleton channel dimension.
+        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
+            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
 
         # Initialize attributes
-        super(TfCamBuilder, self).__init__(model, transform_fn, class_names, time_axs, input_transposed,
-                                           model_output_index, seed=seed)
+        super(TfCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
+                                           time_axs=time_axs, input_transposed=input_transposed,
+                                           ignore_channel_dim=ignore_channel_dim, is_binary=is_binary,
+                                           model_output_index=model_output_index, extend_search=extend_search,
+                                           seed=seed)
 
         # Set seeds
         tf.random.set_seed(seed)
 
-    def _get_layers_pool(self, show: bool = False) -> Dict[str, tf.keras.layers.Layer | Any]:
+        # Check for input/output attributes
+        if not hasattr(model, "inputs"):
+            print("Your TensorFlow/Keras model has no attribute 'inputs'. Ensure it is built or loaded correctly, or\n"
+                  "provide a different one. If the model contains a 'Sequential' attribute, that Sequential object may\n"
+                  "be a suitable candidate for an input model.")
+        elif not hasattr(model, "output"):
+            print("Your TensorFlow/Keras model has no attribute 'output'. Ensure it is built or loaded correctly, or\n"
+                  "provide a different one. If the model contains a 'Sequential' attribute, that Sequential object may\n"
+                  "be a suitable candidate for an input model.")
+
+    def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
+            -> Dict[str, tf.keras.layers.Layer | Any]:
         """
         Retrieves a dictionary containing all the available TensorFlow/Keras layers (or instance attributes), with the
         layer (or attribute) names used as keys.
 
         :param show: (optional, default is False) A boolean flag indicating whether to display the retrieved layers
             along with their names.
+        :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
+            candidate layers. It should be set true if no convolutional layer was found.
 
         :return:
             - layers_pool: A dictionary storing the model's TensorFlow/Keras layers (or instance attributes), with layer
@@ -67,10 +90,42 @@ class TfCamBuilder(CamBuilder):
             if show:
                 for name, layer in layers_pool.items():
                     self._show_layer(name, layer)
+            layers_pool.update(self._get_sub_layers_pool(layers_pool, show=show))
         else:
-            layers_pool = super()._get_layers_pool(show)
+            layers_pool = super()._get_layers_pool(show=show)
+            layers_pool.update(self._get_sub_layers_pool(layers_pool, show=show))
+
+        if extend_search:
+            layers_pool.update(super()._get_layers_pool(show=show))
 
         return layers_pool
+
+    def _get_sub_layers_pool(self, layers_pool: Dict[str, tf.keras.layers.Layer | Any], show: bool = False) \
+            -> Dict[str, tf.keras.layers.Layer | Any]:
+        """
+        Retrieves a dictionary containing all the available TensorFlow/Keras layers (or instance attributes), with the
+        layer (or attribute) names used as keys.
+
+        :param show: (optional, default is False) A boolean flag indicating whether to display the retrieved layers
+            along with their names.
+        :param layers_pool: (mandatory) A dictionary storing the model's TensorFlow/Keras layers (or instance
+            attributes), with layer (or attribute) names as keys.
+
+        :return:
+            - sub_layers_pool: A dictionary storing the model's TensorFlow/Keras layers (or instance attributes), with
+            layer (or attribute) names as keys, enhanced with sub-layers formerly encapsulated in keras.Sequential
+            objects.
+        """
+
+        sub_layers_pool = {}
+        for name, layer in layers_pool.items():
+            if isinstance(layer, keras.Sequential):
+                sub_layers_pool.update({name + "." + sub_layer.name: sub_layer for sub_layer in layer.layers})
+        if show:
+            for name, layer in sub_layers_pool.items():
+                self._show_layer(name, layer)
+
+        return sub_layers_pool
 
     def _show_layer(self, name: str, layer: tf.keras.layers.Layer | Any, potential: bool = False) -> None:
         """
@@ -83,7 +138,7 @@ class TfCamBuilder(CamBuilder):
         """
 
         if (isinstance(layer, keras.layers.Conv1D) or isinstance(layer, keras.layers.Conv2D) or
-                isinstance(layer, keras.layers.Softmax)):
+                isinstance(layer, keras.layers.Softmax) or isinstance(layer, keras.Sequential)):
             super()._show_layer(name, layer, potential=potential)
 
     def _create_raw_batched_cams(self, data_list: List[np.array], target_class: int,
@@ -112,7 +167,8 @@ class TfCamBuilder(CamBuilder):
             data_list = [tf.convert_to_tensor(x) for x in data_list]
 
         is_2d_layer = self._is_2d_layer(target_layer)
-        if is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer and len(data_list[0].shape) == 1:
+        if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer
+                                            and len(data_list[0].shape) == 1):
             data_list = [tf.expand_dims(x, axis=0) for x in data_list]
         data_batch = tf.stack(data_list, axis=0)
 
@@ -128,6 +184,10 @@ class TfCamBuilder(CamBuilder):
             else:
                 target_scores = outputs
                 target_probs = tf.nn.softmax(target_scores, axis=1)
+
+            if self.is_binary:
+                target_scores = tf.concat([target_scores, target_scores], axis=1)
+                target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
 
             target_scores = target_scores[:, target_class]
             target_probs = target_probs[:, target_class]
