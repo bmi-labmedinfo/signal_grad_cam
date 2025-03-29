@@ -1,6 +1,6 @@
 <div id="top"></div>
 
-<div align="center">[![Contributors][contributors-shield]][contributors-url] [![Forks][forks-shield]][forks-url] [![Stargazers][stars-shield]][stars-url] [![Issues][issues-shield]][issues-url] [![MIT License][license-shield]][license-url]</div>
+[![Contributors][contributors-shield]][contributors-url] [![Forks][forks-shield]][forks-url] [![Stargazers][stars-shield]][stars-url] [![Issues][issues-shield]][issues-url] [![MIT License][license-shield]][license-url]
 
 
 <br />
@@ -52,16 +52,16 @@
    ```sh
    pip install --upgrade pip
     ```
-2. Install araucanaxai through pip
+2. Install SignalGrad-CAM through pip
     ```sh
-     pip install -i https://test.pypi.org/simple/ signal-grad-cam==0.1.21
+     pip install -i https://test.pypi.org/simple/ signal-grad-cam
     ```
 
 <p align="right"><a href="#top">Back To Top</a></p>
 
 <!-- USAGE EXAMPLES -->
 ## Usage
-
+<p align="justify">
 Here's a basic example that illustrates SignalGrad-CAM common usage.
 
 First, train a classifier on the data or select an already trained model, then instantiate `TorchCamBuilder` (if you are working with a PyTorch model) or `TfCamBuilder` (if the model is built in TensorFlow/Keras).
@@ -69,6 +69,7 @@ First, train a classifier on the data or select an already trained model, then i
 Besides the model, `TorchCamBuilder` requires additional information to function effectively. For example, you may provide a list of class labels, a preprocessing function, or an index indicating which dimension corresponds to time. These attributes allow SignalGrad-CAM to be applied to a wide range of models.
 
 The constructor displays a list of available Grad-CAM algorithms for explanation, as well as a list of layers that can be used as target for the algorithm. It also identifies any Sigmoid/Softmax layer, since its presence or absence will slightly change the algorithm's workflow.
+</p>
 
 ```python
 import numpy as np
@@ -76,7 +77,7 @@ import torch
 from signal_grad_cam import TorchCamBuilder
 
 # Load model
-model = ModelConstructor()
+model = YourTorchModelConstructor()
 model.load_state_dict(torch.load("path_to_your_stored_model.pt")
 model.eval()
 
@@ -91,17 +92,18 @@ class_labels = ["Class 1", "Class 2", "Class 3"]
 cam_builder = TorchCamBuilder(model=model, transform_fc=preprocess_fc, class_names=class_labels, time_axs=1)
 ```
 
-Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the *`get_cams`* method. You can specify multiple algorithm names, target layers, or target classes as needed.
+<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the *`get_cams`* method. You can specify multiple algorithm names, target layers, or target classes as needed.
 
 The function's attributes allow users to customize the visualization (e.g., setting axis ticks or labels). If a result directory path is provided, the output is stored as a '.png' file; otherwise, it is displayed. In all cases, the function returns a dictionary containing the requested CAMs, along with the model's predictions and importance score ranges.
 
 Finally, several visualization tools are available to gain deeper insights into the model's behavior. The display can be customized by adjusting line width, point extension, aspect ratio, and more:
 * *`single_channel_output_display`* plots the selected channels using a color scheme that reflects the importance of each input feature.
 * *`overlapped_output_display`* superimposes CAMs onto the corresponding input in an image-like format, allowing users to capture the overall distribution of input importance.
+</p>
 
 ```python
 # Prepare data
-data_list = [x for x in your_data_x[:2]]
+data_list = [x for x in your_numpy_data_x[:2]]
 data_labels_list = [1, 0]
 item_names = ["Item 1", "Item 2"]
 target_classes = [0, 1]
@@ -141,7 +143,6 @@ If you use the SignalGrad-CAM software for your projects, please cite it as:
 ```
 @software{Pe_SignalGrad_CAM_2025,
   author = {Pe, Samuele and Buonocore, Tommaso Mario and Giovanna, Nicora and Enea, Parimbelli},
-  month = {3},
   title = {{SignalGrad-CAM}},
   url = {https://github.com/samuelepe11/signal-grad-cam},
   version = {0.0.1},
@@ -196,7 +197,7 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 [license-url]: https://github.com/samuelepe11/signal-grad-cam/LICENSE
 
-[linkedin-shield]: 	https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white
+[linkedin-shield]: https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white
 
 [linkedin-url]: https://linkedin.com/in/samuele-pe-818bbb307
 

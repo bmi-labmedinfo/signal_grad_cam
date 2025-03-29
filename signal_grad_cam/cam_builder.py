@@ -85,14 +85,15 @@ class CamBuilder:
         # Show available 1D or 2D convolutional layers
         print()
         print("SEARCHING FOR NETWORK LAYERS:")
-        print("Please, verify that your network contains at least one 1D or 2D convolutional layer and note the names\n",
-              "of the layers that are of interest to you. If the desired layer is not present in the following list,\n",
-              "it can still be accessed by the name used in the network to identify it.\nVerify whether the model \n",
-              "ends with an activation function from the Sigmoid family (such as Sigmoid o Softmax). Even if this\n",
-              "activation function is not present in the following list, ensure to check if it is applied at the end\n",
-              "of the network. Please make sure that the provided model is set in inference ('eval') mode for PyTorch\n",
-              "models and that TensorFlow/Keras models have been built (they must have the specific 'inputs' and\n"
-              "'output' attributes)\nNetwork layers found (name: type)")
+        self.__print_justify("Please, verify that your network contains at least one 1D or 2D convolutional layer "
+                             "and note the names of the layers that are of interest to you. If the desired layer is not"
+                             " present in the following list, it can still be accessed by the name used in the network "
+                             "to identify it.\nVerify whether the model ends with an activation function from the "
+                             "Softmax family (such as Sigmoid o Softmax). Even if this activation function is not "
+                             "present in the following list, ensure to check if it is applied at the end of the "
+                             "network. Please make sure that the provided model is set in inference ('eval') mode for "
+                             "PyTorch models and that TensorFlow/Keras models have been built (they must have the "
+                             "specific 'inputs' and 'output' attributes)\nNetwork layers found (name: type)")
         self._get_layers_pool(show=True, extend_search=extend_search)
         print()
 
@@ -540,6 +541,9 @@ class CamBuilder:
             data_shape_list_processed = [data_element.shape for data_element in data_list]
             if len(np.unique(np.array(data_shape_list_processed, dtype=object))) != 1:
                 data_list = [np.resize(x, data_shape_list_processed[0]) for x in data_list]
+                self.__print_justify("Input data items have different shapes. Each item has been reshaped to match the "
+                                     "first item's dimensions for batching. To prevent this, provide one item at a "
+                                     "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
                                                                softmax_final)
@@ -842,11 +846,9 @@ class CamBuilder:
 
             # Communicate outcome
             descr_addon1 = "for item '" + item_name + "' " if item_name is not None else ""
-            msg = ("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
-                   self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type +
-                   ") as '" + filename + "'...")
-            msg = "\n".join(msg[i:i + 100] for i in range(0, len(msg), 100))
-            print(msg)
+            self.__print_justify("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
+                                 self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type +
+                                 ") as '" + filename + "'...")
 
             plt.savefig(os.path.join(filepath, filename), format="png", bbox_inches="tight", pad_inches=0,
                         dpi=500)
@@ -1015,3 +1017,14 @@ class CamBuilder:
             norm = None
 
         return norm
+
+    @staticmethod
+    def __print_justify(text: str, n_characters: int = 100) -> None:
+        """
+        Prints a message in a fully justified format within a specified line width.
+
+        :param text: (mandatory) Text string to be displayed.
+        :param n_characters: (optional, default is 100) The number of characters allowed per line.
+        """
+        text = "\n".join(text[i:i + n_characters] for i in range(0, len(text), n_characters))
+        print(text)
