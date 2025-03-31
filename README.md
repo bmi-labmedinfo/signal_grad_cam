@@ -131,7 +131,7 @@ cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labe
 				      results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
 ```
 
-You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples).
+You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/tree/main/examples).
 
 See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) for a full list of proposed features (and known issues).
 
