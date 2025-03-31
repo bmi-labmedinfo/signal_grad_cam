@@ -131,7 +131,7 @@ cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labe
 				      results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
 ```
 
-You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/tree/main/examples).
+You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples).
 
 See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) for a full list of proposed features (and known issues).
 
@@ -181,11 +181,11 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 [status-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/releases
 
-[forks-shield]: https://img.shields.io/github/forks/samuelepe11/signal_grad_cam.svg?style=for-the-badge
+[forks-shield]: https://img.shields.io/github/forks/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
 [forks-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/network/members
 
-[stars-shield]: https://img.shields.io/github/stars/samuelepe11/signal_grad_cam.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
 [stars-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/stargazers
 
@@ -193,9 +193,9 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 [issues-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/issues
 
-[license-shield]: https://img.shields.io/github/license/samuelepe11/signal_grad_cam.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[license-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/blob/main/LICENSE
+[license-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/LICENSE
 
 [linkedin-shield]: https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white
 
