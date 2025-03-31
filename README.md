@@ -185,9 +185,9 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 [forks-url]: https://github.com/samuelepe11/signal_grad_cam/network/members
 
-[stars-shield]: https://img.shields.io/github/stars/samuelepe11/signal_grad_cam.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[stars-url]: https://github.com/bmi-labmedinfo/samuelepe11/stargazers
+[stars-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/stargazers
 
 [issues-shield]: https://img.shields.io/github/issues/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
