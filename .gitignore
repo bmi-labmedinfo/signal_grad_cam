@@ -1,6 +1,7 @@
 .idea/
 build/
 dist/
+test_pypi_dist/
 signal_grad_cam.egg-info/
 signal_grad_cam/__pycache__/
 examples/data/datasets/signal_data_1D/ecg.pkl

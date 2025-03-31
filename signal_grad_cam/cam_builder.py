@@ -668,14 +668,14 @@ class CamBuilder:
             self.__set_colorbar(bar_ranges, i)
 
             # Set title
-            if map.shape[0] > 1 and is_2d_layer:
+            '''if map.shape[0] > 1 and is_2d_layer:
                 title_h = 1
                 plt.subplots_adjust(top=0.85, bottom=0.2)
             else:
-                title_h = 0.98
-            plt.suptitle("CAM for class '" + str(self.class_names[target_class]) + "' (confidence = " +
-                         str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
-                         str(self.class_names[data_labels[i]]), y=title_h)
+                title_h = 0.98'''
+            plt.title("CAM for class '" + str(self.class_names[target_class]) + "' (confidence = " +
+                      str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
+                      str(self.class_names[data_labels[i]]))#, y=title_h)
 
             # Set axis
             self.__set_axes(map, data_sampling_freq, dt, channel_names, time_names=time_names, axes_names=axes_names)

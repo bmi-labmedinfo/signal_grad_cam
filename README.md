@@ -12,10 +12,10 @@
   <h3 align="center">SignalGrad-CAM aims at generalising Grad-CAM to one-dimensional applications, while enhancing usability and efficiency.</h3>
 
   <p align="center">
-    <a href="https://github.com/samuelepe11/signal-grad-cam"><strong>Explore the docs</strong></a>
+    <a href="https://github.com/bmi-labmedinfo/signal_grad_cam"><strong>Explore the docs</strong></a>
     <br />
     <br />
-    <a href="https://github.com/samuelepe11/signal-grad-cam/issues">Report Bug or Request Feature</a>
+    <a href="https://github.com/bmi-labmedinfo/signal_grad_cam/issues">Report Bug or Request Feature</a>
   </p>
 </div>
 
@@ -54,7 +54,7 @@
     ```
 2. Install SignalGrad-CAM through pip
     ```sh
-     pip install -i https://test.pypi.org/simple/ signal-grad-cam
+     pip install signal-grad-cam
     ```
 
 <p align="right"><a href="#top">Back To Top</a></p>
@@ -131,9 +131,9 @@ cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labe
 				      results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
 ```
 
-You can also check the python scripts [here](https://github.com/samuelepe11/signal-grad-cam/examples).
+You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples).
 
-See the [open issues](https://github.com/samuelepe11/signal-grad-cam/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) for a full list of proposed features (and known issues).
 
 <p align="right"><a href="#top">Back To Top</a></p>
 
@@ -144,7 +144,7 @@ If you use the SignalGrad-CAM software for your projects, please cite it as:
 @software{Pe_SignalGrad_CAM_2025,
   author = {Pe, Samuele and Buonocore, Tommaso Mario and Giovanna, Nicora and Enea, Parimbelli},
   title = {{SignalGrad-CAM}},
-  url = {https://github.com/samuelepe11/signal-grad-cam},
+  url = {https://github.com/bmi-labmedinfo/signal_grad_cam},
   version = {0.0.1},
   year = {2025}
 }
@@ -157,9 +157,9 @@ If you use the SignalGrad-CAM software for your projects, please cite it as:
 
 *   **Repository maintainer**: Samuele Pe  [![Gmail][gmail-shield]][gmail-url] [![LinkedIn][linkedin-shield]][linkedin-url]  
 
-*   **Project Link**: [https://github.com/samuelepe11/signal-grad-cam](https://github.com/samuelepe11/signal-grad-cam)
+*   **Project Link**: [https://github.com/bmi-labmedinfo/signal_grad_cam](https://github.com/bmi-labmedinfo/signal_grad_cam)
 
-*   **Package Link**: [https://test.pypi.org/project/signal-grad-cam/](https://test.pypi.org/project/signal-grad-cam/)
+*   **Package Link**: [https://pypi.org/project/signal-grad-cam/](https://pypi.org/project/signal-grad-cam/)
 
 <p align="right"><a href="#top">Back To Top</a></p>
 
@@ -173,29 +173,29 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 <!-- MARKDOWN LINKS -->
 
-[contributors-shield]: https://img.shields.io/github/contributors/samuelepe11/signal-grad-cam.svg?style=for-the-badge
+[contributors-shield]: https://img.shields.io/github/contributors/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[contributors-url]: https://github.com/samuelepe11/signal-grad-cam/graphs/contributors
+[contributors-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/graphs/contributors
 
 [status-shield]: https://img.shields.io/badge/Status-pre--release-blue
 
-[status-url]: https://github.com/samuelepe11/signal-grad-cam/releases
+[status-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/releases
 
-[forks-shield]: https://img.shields.io/github/forks/samuelepe11/signal-grad-cam.svg?style=for-the-badge
+[forks-shield]: https://img.shields.io/github/forks/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[forks-url]: https://github.com/samuelepe11/signal-grad-cam/network/members
+[forks-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/network/members
 
-[stars-shield]: https://img.shields.io/github/stars/samuelepe11/signal-grad-cam.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[stars-url]: https://github.com/samuelepe11/signal-grad-cam/stargazers
+[stars-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/stargazers
 
-[issues-shield]: https://img.shields.io/github/issues/samuelepe11/signal-grad-cam.svg?style=for-the-badge
+[issues-shield]: https://img.shields.io/github/issues/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[issues-url]: https://github.com/samuelepe11/signal-grad-cam/issues
+[issues-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/issues
 
-[license-shield]: https://img.shields.io/github/license/samuelepe11/signal-grad-cam.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/bmi-labmedinfo/signal_grad_cam.svg?style=for-the-badge
 
-[license-url]: https://github.com/samuelepe11/signal-grad-cam/LICENSE
+[license-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/LICENSE
 
 [linkedin-shield]: https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white
 
