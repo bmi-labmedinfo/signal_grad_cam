@@ -1,6 +1,7 @@
 '''
 
-The PyTorch model used in this script was obtained from GitHub: github.com/Data-Science-kosta/Speech-Emotion-Classification-with-PyTorch
+The PyTorch model used in this script was obtained from GitHub:
+    github.com/Data-Science-kosta/Speech-Emotion-Classification-with-PyTorch
 and the data come from Kaggle: kaggle.com/datasets/uwrfkaggler/ravdess-emotional-speech-audio
 
 The TensorFlow/Keras model used in this script was obtained from GitHub: github.com/HaneenElyamani/ECG-classification

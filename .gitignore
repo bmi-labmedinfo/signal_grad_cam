@@ -2,9 +2,14 @@
 build/
 dist/
 signal_grad_cam.egg-info/
+signal_grad_cam/__pycache__/
 examples/data/datasets/signal_data_1D/ecg.pkl
 examples/data/datasets/signal_data_1D/people_car_keys.wav
-examples/data/datasets/signal_data_1D/sign_fingersnap.wav
+examples/data/datasets/signal_data_1D/sing_fingersnap.wav
 examples/data/models/ecg_model_1D_torch.pth
 examples/outputs/
-signal_grad_cam/__pycache__/
+examples/_pycache__/
+examples/classification_models_1D/_pycache__/
+examples/classification_models_1D/models/_pycache__/
+examples/data/_pycache__/
+examples/models/_pycache__/

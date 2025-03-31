@@ -20,7 +20,7 @@ class TfCamBuilder(CamBuilder):
 
     def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable = None, class_names: List[str] = None,
                  time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
-                 is_binary: bool = False, model_output_index: int = None, extend_search: bool = False, seed: int = 11):
+                 model_output_index: int = None, extend_search: bool = False, seed: int = 11):
         """
         Initializes the TfCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -39,8 +39,6 @@ class TfCamBuilder(CamBuilder):
             during model inference, either by the model itself or by the preprocessing function.
         :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
             dimension. This is useful when the model expects inputs without a singleton channel dimension.
-        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
-            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -52,9 +50,8 @@ class TfCamBuilder(CamBuilder):
         # Initialize attributes
         super(TfCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
                                            time_axs=time_axs, input_transposed=input_transposed,
-                                           ignore_channel_dim=ignore_channel_dim, is_binary=is_binary,
-                                           model_output_index=model_output_index, extend_search=extend_search,
-                                           seed=seed)
+                                           ignore_channel_dim=ignore_channel_dim, model_output_index=model_output_index,
+                                           extend_search=extend_search, seed=seed)
 
         # Set seeds
         tf.random.set_seed(seed)
@@ -184,10 +181,6 @@ class TfCamBuilder(CamBuilder):
             else:
                 target_scores = outputs
                 target_probs = tf.nn.softmax(target_scores, axis=1)
-
-            if self.is_binary:
-                target_scores = tf.concat([target_scores, target_scores], axis=1)
-                target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
 
             target_scores = target_scores[:, target_class]
             target_probs = target_probs[:, target_class]

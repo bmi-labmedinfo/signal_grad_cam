@@ -15,8 +15,7 @@ class TorchCamBuilder(CamBuilder):
 
     def __init__(self, model: nn.Module | Any, transform_fn: Callable = None, class_names: List[str] = None,
                  time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
-                 is_binary: bool = False, model_output_index: int = None, extend_search: bool = False,
-                 use_gpu: bool = False, seed: int = 11):
+                 model_output_index: int = None, extend_search: bool = False, use_gpu: bool = False, seed: int = 11):
         """
         Initializes the TorchCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -35,8 +34,6 @@ class TorchCamBuilder(CamBuilder):
             during model inference, either by the model itself or by the preprocessing function.
         :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
             dimension. This is useful when the model expects inputs without a singleton channel dimension.
-        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
-            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -50,7 +47,7 @@ class TorchCamBuilder(CamBuilder):
         # Initialize attributes
         super(TorchCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
                                               time_axs=time_axs, input_transposed=input_transposed,
-                                              ignore_channel_dim=ignore_channel_dim, is_binary=is_binary,
+                                              ignore_channel_dim=ignore_channel_dim,
                                               model_output_index=model_output_index, extend_search=extend_search,
                                               seed=seed)
 
@@ -139,8 +136,8 @@ class TorchCamBuilder(CamBuilder):
         """
 
         # Register hooks
-        _ = target_layer.register_forward_hook(self.__get_forward_hook, prepend=False)
-        _ = target_layer.register_full_backward_hook(self.__get_backward_hook, prepend=False)
+        _ = target_layer.register_forward_hook(self.__get_activation_forward_hook, prepend=False)
+        _ = target_layer.register_forward_hook(self.__get_gradient_forward_hook, prepend=False)
 
         # Data batching
         if not isinstance(data_list[0], torch.Tensor):
@@ -165,9 +162,6 @@ class TorchCamBuilder(CamBuilder):
             target_scores = outputs
             target_probs = torch.softmax(target_scores, dim=1)
 
-        if self.is_binary:
-            target_scores = torch.concat([target_scores, target_scores], dim=1)
-            target_probs = torch.concat([1 - target_probs, target_probs], dim=1)
         target_probs = target_probs[:, target_class].cpu().detach().numpy()
 
         cam_list = []
@@ -238,7 +232,8 @@ class TorchCamBuilder(CamBuilder):
         cam = torch.relu(cam)
         return cam
 
-    def __get_forward_hook(self, layer: nn.Module, inputs: Tuple[torch.Tensor, ...], outputs: torch.Tensor) -> None:
+    def __get_activation_forward_hook(self, layer: nn.Module, inputs: Tuple[torch.Tensor, ...], outputs: torch.Tensor) \
+            -> None:
         """
         Defines the forward hook function for capturing intermediate activations during model inference.
 
@@ -249,19 +244,27 @@ class TorchCamBuilder(CamBuilder):
 
         self.activations = outputs
 
-    def __get_backward_hook(self, layer: nn.Module, grad_inputs: Tuple[torch.Tensor, ...],
-                            grad_outputs: Tuple[torch.Tensor, ...]) -> None:
+    def __get_gradient_forward_hook(self, layer: nn.Module, inputs: Tuple[torch.Tensor, ...], outputs: torch.Tensor) \
+            -> None:
         """
-        Defines the backward hook function for capturing gradient information during backpropagation.
+        Defines the forward hook function for capturing intermediate gradients during model inference.
 
         :param layer: (mandatory) The target PyTorch layer where the hook is attached.
-        :param grad_inputs: (mandatory) A tuple containing the gradients of the layer's inputs, computed during
-            backpropagation.
-        :param grad_outputs: (mandatory) A tuple containing the gradients of the layer's outputs, computed during
-            backpropagation.
+        :param inputs: (mandatory) A tuple containing the input tensors received by the layer.
+        :param outputs: (mandatory) The output tensor produced by the layer after applying its operations.
         """
 
-        self.gradients = grad_outputs[0]
+        outputs.register_hook(self.__store_grad)
+
+    def __store_grad(self, gradients: torch.Tensor) -> None:
+        """
+        Captures intermediate gradients during backpropagation.
+
+        :param gradients: (mandatory) A tensor containing the gradients of the layer's outputs, computed during
+        backpropagation.
+        """
+
+        self.gradients = gradients
 
     @staticmethod
     def _is_2d_layer(target_layer: nn.Module) -> bool:

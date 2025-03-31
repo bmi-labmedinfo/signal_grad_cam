@@ -23,8 +23,8 @@ class CamBuilder:
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
                  transform_fn: Callable[[np.ndarray], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, is_binary: bool = False, model_output_index: int = None,
-                 extend_search: bool = False, seed: int = 11):
+                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
+                 seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -43,8 +43,6 @@ class CamBuilder:
             during model inference, either by the model itself or by the preprocessing function.
         :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
             dimension. This is useful when the model expects inputs without a singleton channel dimension.
-        :param is_binary: (optional, default is False) A boolean indicating whether the input model is performing a
-            binary classification, i.e. there is only one output neuron.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -67,7 +65,6 @@ class CamBuilder:
         self.input_transposed = input_transposed
         self.ignore_channel_dim = ignore_channel_dim
         self.model_output_index = model_output_index
-        self.is_binary = is_binary
 
         self.gradients = None
         self.activations = None
@@ -551,8 +548,6 @@ class CamBuilder:
         self.gradients = None
         cams = np.stack(cam_list)
         cam_list, bar_ranges = self.__adjust_maps(cams, data_shape_list, self._is_2d_layer(target_layer))
-        if self.is_binary:
-            cam_list = [255 - cam for cam in cam_list]
         return cam_list, target_probs, bar_ranges
 
     def __adjust_maps(self, cams: np.ndarray, data_shape_list: List[Tuple[int, int]], is_2d_layer: bool) \

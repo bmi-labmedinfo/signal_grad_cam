@@ -3,15 +3,33 @@ The PyTorch model used in this script was obtained from GitHub: github.com/hsd15
 Licensed under the Apache License, Version 2.0, January 2004. See apache.org/licenses/LICENSE-2.0 for details.
 @inproceedings{hong2020holmes,
   title={HOLMES: Health OnLine Model Ensemble Serving for Deep Learning Models in Intensive Care Units},
-  author={Hong, Shenda and Xu, Yanbo and Khare, Alind and Priambada, Satria and Maher, Kevin and Aljiffry, Alaa and Sun, Jimeng and Tumanov, Alexey},
-  booktitle={Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining},
+  author={Hong, Shenda and Xu, Yanbo and Khare, Alind and Priambada, Satria and Maher, Kevin and Aljiffry, Alaa and Sun,
+          Jimeng and Tumanov, Alexey},
+  booktitle={Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining},
   pages={1614--1624},
   year={2020}
 }
 and the data come from the PhysioNet/CinC Challenge 2017: physionet.org/content/challenge-2017/1.0.0/
 
+Due to the large file size, the PyTorch model and data are not included in this GitHub repository. However, they can be
+retrieved directly from the source.
+    - The model file, "model.pth", is available at github.com/hsd1503/resnet1d/tree/master/trained_model
+      After downloading, rename the file and place it in the following directory within this project:
+      ./data/models/ecg_model_1D_torch.pth
+    - The data file, "challenge2017.pkl", is available at drive.google.com/drive/folders/1AuPxvGoyUbKcVaFmeyt3xsqj6ucWZezf
+      After downloading, rename the file and place it in the following directory within this project:
+      ./data/datasets/signal_data_1D/ecg.pkl
+
 The TensorFlow/Keras model used in this script was obtained from GitHub: github.com/ZFTurbo/classification_models_1D
 and the data come from AudioSet: research.google.com/audioset/
+Due to the large file size, the data files for the Tensorflow/Keras model evaluation are not included in this GitHub
+repository. However, they can be retrieved directly from the source.
+    - The first audio file, "-0RWZT-miFs.wav", is available kaggle.com/datasets/zfturbo/audioset-valid
+      After downloading, rename the file and place it in the following directory within this project:
+      ./data/datasets/signal_data_1D/people_car_keys.wav
+    - The second audio file, "-0vPFx-wRRI.wav", is available at kaggle.com/datasets/zfturbo/audioset-valid
+      After downloading, rename the file and place it in the following directory within this project:
+      ./data/datasets/signal_data_1D/sing_fingersnap.wav
 '''
 
 # Import dependencies
