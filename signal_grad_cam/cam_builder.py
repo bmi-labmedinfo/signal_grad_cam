@@ -24,7 +24,7 @@ class CamBuilder:
                  transform_fn: Callable[[np.ndarray], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
-                 seed: int = 11):
+                 padding_dim: int = None, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -47,6 +47,8 @@ class CamBuilder:
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
             candidate layers. It should be set true if no convolutional layer was found.
+        :param padding_dim: (optional, default is None) An integer specifying the maximum length along the time axis to
+            which each item will be padded for batching.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
@@ -65,6 +67,8 @@ class CamBuilder:
         self.input_transposed = input_transposed
         self.ignore_channel_dim = ignore_channel_dim
         self.model_output_index = model_output_index
+        self.padding_dim = padding_dim
+        self.original_dims = []
 
         self.gradients = None
         self.activations = None
@@ -534,7 +538,7 @@ class CamBuilder:
             data_list = [self.transform_fn(data_element) for data_element in data_list]
 
         # Ensure data have consistent size for batching
-        if len(data_list) > 1:
+        if len(data_list) > 1 and self.padding_dim is None:
             data_shape_list_processed = [data_element.shape for data_element in data_list]
             if len(np.unique(np.array(data_shape_list_processed, dtype=object))) != 1:
                 data_list = [np.resize(x, data_shape_list_processed[0]) for x in data_list]
@@ -578,15 +582,18 @@ class CamBuilder:
                 if self.input_transposed:
                     dim_reshape = dim_reshape[::-1]
             else:
+                dim_reshape = (1, data_shape_list[i][self.time_axs])
                 if self.time_axs:
-                    dim_reshape = (1, data_shape_list[i][0])
-                else:
-                    dim_reshape = (1, data_shape_list[i][1])
                     cam = np.transpose(cam)
+            if self.padding_dim is not None:
+                original_dim = dim_reshape[1]
+                dim_reshape = (dim_reshape[0], self.padding_dim)
             cam = cv2.resize(cam, dim_reshape)
 
             if is_2d_layer and self.input_transposed:
                 cam = np.transpose(cam)
+            if self.padding_dim is not None:
+                cam = cam[:original_dim, :]
             cam_list.append(cam)
 
         return cam_list, bar_ranges
@@ -662,11 +669,11 @@ class CamBuilder:
 
             # Set title
             if map.shape[0] > 1 and is_2d_layer:
-                title_h = 1.05
+                title_h = 1
                 plt.subplots_adjust(top=0.85, bottom=0.2)
             else:
                 title_h = 0.98
-            plt.suptitle("CAM for class " + str(self.class_names[target_class]) + " (confidence = " +
+            plt.suptitle("CAM for class '" + str(self.class_names[target_class]) + "' (confidence = " +
                          str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
                          str(self.class_names[data_labels[i]]), y=title_h)
 

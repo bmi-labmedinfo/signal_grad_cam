@@ -15,7 +15,8 @@ class TorchCamBuilder(CamBuilder):
 
     def __init__(self, model: nn.Module | Any, transform_fn: Callable = None, class_names: List[str] = None,
                  time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
-                 model_output_index: int = None, extend_search: bool = False, use_gpu: bool = False, seed: int = 11):
+                 model_output_index: int = None, extend_search: bool = False, use_gpu: bool = False,
+                 padding_dim: int = None, seed: int = 11):
         """
         Initializes the TorchCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -40,6 +41,8 @@ class TorchCamBuilder(CamBuilder):
             candidate layers. It should be set true if no convolutional layer was found.
         :param use_gpu: (optional, default is False) A boolean flag indicating whether to use GPU for data processing,
             if GPU is available.
+        :param padding_dim: (optional, default is None) An integer specifying the maximum length along the time axis to
+            which each item will be padded for batching.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
@@ -49,7 +52,7 @@ class TorchCamBuilder(CamBuilder):
                                               time_axs=time_axs, input_transposed=input_transposed,
                                               ignore_channel_dim=ignore_channel_dim,
                                               model_output_index=model_output_index, extend_search=extend_search,
-                                              seed=seed)
+                                              padding_dim=padding_dim, seed=seed)
 
         # Set seeds
         torch.manual_seed(seed)
@@ -142,6 +145,18 @@ class TorchCamBuilder(CamBuilder):
         # Data batching
         if not isinstance(data_list[0], torch.Tensor):
             data_list = [torch.Tensor(x) for x in data_list]
+        if self.padding_dim is not None:
+            padded_data_list = []
+            for item in data_list:
+                pad_size = self.padding_dim - item.shape[self.time_axs]
+                if not self.time_axs:
+                    zeros = torch.zeros((pad_size, item.shape[1]), dtype=item.dtype,
+                                        device=item.device)
+                else:
+                    zeros = torch.zeros((item.shape[0], pad_size), dtype=item.dtype,
+                                        device=item.device)
+                padded_data_list.append(torch.cat((item, zeros), dim=self.time_axs))
+            data_list = padded_data_list
 
         is_2d_layer = self._is_2d_layer(target_layer)
         if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer

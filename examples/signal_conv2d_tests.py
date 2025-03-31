@@ -93,7 +93,7 @@ def pytorch_model_testing():
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
                                               explainer_types=comparison_algorithm, target_classes=target_classes,
                                               target_layers=target_layers_names, data_names=data_names,
-                                              fig_size=(12, 6), desired_channels=[0, 50, 125],
+                                              fig_size=(12, 10), desired_channels=[0, 50, 125],
                                               bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
                                               axes_names=axes_names, line_width=0.5, marker_width=50)
 

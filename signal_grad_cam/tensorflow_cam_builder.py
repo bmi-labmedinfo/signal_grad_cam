@@ -20,7 +20,7 @@ class TfCamBuilder(CamBuilder):
 
     def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable = None, class_names: List[str] = None,
                  time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
-                 model_output_index: int = None, extend_search: bool = False, seed: int = 11):
+                 model_output_index: int = None, extend_search: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the TfCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -43,6 +43,8 @@ class TfCamBuilder(CamBuilder):
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
             candidate layers. It should be set true if no convolutional layer was found.
+        :param padding_dim: (optional, default is None) An integer specifying the maximum length along the time axis to
+            which each item will be padded for batching.
         :param seed: (optional, default is 11) An integer seed for random number generators, used to ensure
             reproducibility during model evaluation.
         """
@@ -51,7 +53,7 @@ class TfCamBuilder(CamBuilder):
         super(TfCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
                                            time_axs=time_axs, input_transposed=input_transposed,
                                            ignore_channel_dim=ignore_channel_dim, model_output_index=model_output_index,
-                                           extend_search=extend_search, seed=seed)
+                                           extend_search=extend_search, padding_dim=padding_dim, seed=seed)
 
         # Set seeds
         tf.random.set_seed(seed)
@@ -160,8 +162,20 @@ class TfCamBuilder(CamBuilder):
                 given setting (defined by algorithm, target layer, and target class).
             - target_probs: A np.ndarray, representing the inferred class probabilities for each item in the input list.
         """
+
+        # Data batching
         if not isinstance(data_list[0], tf.Tensor):
             data_list = [tf.convert_to_tensor(x) for x in data_list]
+        if self.padding_dim is not None:
+            padded_data_list = []
+            for item in data_list:
+                pad_size = self.padding_dim - tf.shape(item)[self.time_axs]
+                if not self.time_axs:
+                    zeros = tf.zeros((pad_size, tf.shape(item)[1]), dtype=item.dtype)
+                else:
+                    zeros = tf.zeros((tf.shape(item)[0], pad_size), dtype=item.dtype)
+                padded_data_list.append(tf.concat([item, zeros], axis=self.time_axs))
+            data_list = padded_data_list
 
         is_2d_layer = self._is_2d_layer(target_layer)
         if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer

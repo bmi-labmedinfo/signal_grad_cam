@@ -92,7 +92,6 @@ def pytorch_model_testing():
     data_names = ["Signal " + str(idx) for idx in data_idx]
 
     # Set SignalGrad-CAM variables
-    time_axs = 1
     target_classes = [0, 1, 2, 3]
     explainer_types = ["Grad-CAM", "HiResCAM"]
 
@@ -105,7 +104,7 @@ def pytorch_model_testing():
     model = torch.load(data_dir + "models/ecg_model_1D_torch.pth", weights_only=False)
 
     # Draw CAMs
-    cam_builder = TorchCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=time_axs)
+    cam_builder = TorchCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=0)
     target_layers_names = "stage_list.6.block_list.3.conv3.conv"
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
                                                             target_classes=target_classes,
@@ -144,7 +143,6 @@ def tensorflow_model_testing():
     data_labels = [379, 62]
 
     # Set SignalGrad-CAM variables
-    time_axs = 0
     target_classes = [379, 62, 0]
     explainer_types = ["Grad-CAM", "HiResCAM"]
 
@@ -159,7 +157,7 @@ def tensorflow_model_testing():
         return signal
 
     # Draw CAMs
-    cam_builder = TfCamBuilder(model, transform_fn=transform_fn, class_names=audio_classes, time_axs=time_axs)
+    cam_builder = TfCamBuilder(model, transform_fn=transform_fn, class_names=audio_classes, time_axs=1)
     target_layers_names = ["stage7_unit2_conv1"]
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
                                                             target_classes=target_classes,
