@@ -195,7 +195,7 @@ Distributed under MIT License. See `LICENSE` for more information.
 
 [license-shield]: https://img.shields.io/github/license/samuelepe11/signal_grad_cam.svg?style=for-the-badge
 
-[license-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/LICENSE
+[license-url]: https://github.com/bmi-labmedinfo/signal_grad_cam/blob/main/LICENSE
 
 [linkedin-shield]: https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white
 
