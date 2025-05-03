@@ -41,7 +41,7 @@
 
 <p align="justify">Deep learning models have demonstrated remarkable performance across various domains; however, their black-box nature hinders interpretability and trust. As a result, the demand for explanation algorithms has grown, driving advancements in the field of eXplainable AI (XAI). However, relatively few efforts have been dedicated to developing interpretability methods for signal-based models. We introduce SignalGrad-CAM (SGrad-CAM), a versatile and efficient interpretability tool that extends the principles of Grad-CAM to both 1D- and 2D-convolutional neural networks for signal processing. SGrad-CAM is designed to interpret models for either image or signal elaboration, supporting both PyTorch and TensorFlow/Keras frameworks, and provides diagnostic and visualization tools to enhance model transparency. The package is also designed for batch processing, ensuring efficiency even for large-scale applications, while maintaining a simple and user-friendly structure.</p>
 
-<p align="justify">**Keywords:** *eXplainable AI, explanations, local explanation, fidelity, interpretability, transparency, trustworthy AI, feature importance, saliency maps, CAM, Grad-CAM, black-box, deep learning, CNN, signals, time series*</p>
+<p align="justify"><i><b>Keywords:</b> eXplainable AI, explanations, local explanation, fidelity, interpretability, transparency, trustworthy AI, feature importance, saliency maps, CAM, Grad-CAM, black-box, deep learning, CNN, signals, time series</i></p>
 
 <p align="right"><a href="#top">Back To Top</a></p>
 
@@ -92,13 +92,13 @@ class_labels = ["Class 1", "Class 2", "Class 3"]
 cam_builder = TorchCamBuilder(model=model, transform_fc=preprocess_fc, class_names=class_labels, time_axs=1)
 ```
 
-<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the *`get_cams`* method. You can specify multiple algorithm names, target layers, or target classes as needed.
+<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the <i>`get_cams`</i> method. You can specify multiple algorithm names, target layers, or target classes as needed.
 
 The function's attributes allow users to customize the visualization (e.g., setting axis ticks or labels). If a result directory path is provided, the output is stored as a '.png' file; otherwise, it is displayed. In all cases, the function returns a dictionary containing the requested CAMs, along with the model's predictions and importance score ranges.
 
 Finally, several visualization tools are available to gain deeper insights into the model's behavior. The display can be customized by adjusting line width, point extension, aspect ratio, and more:
-* *`single_channel_output_display`* plots the selected channels using a color scheme that reflects the importance of each input feature.
-* *`overlapped_output_display`* superimposes CAMs onto the corresponding input in an image-like format, allowing users to capture the overall distribution of input importance.
+* <i>`single_channel_output_display`</i> plots the selected channels using a color scheme that reflects the importance of each input feature.
+* <i>`overlapped_output_display`</i> superimposes CAMs onto the corresponding input in an image-like format, allowing users to capture the overall distribution of input importance.
 </p>
 
 ```python
