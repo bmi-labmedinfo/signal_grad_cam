@@ -8,7 +8,7 @@ import matplotlib.colors as m_colors
 import re
 import torch
 import tensorflow as tf
-from typing import Callable, List, Tuple, Dict, Any
+from typing import Callable, List, Tuple, Dict, Any, Optional
 
 
 # Class
@@ -21,10 +21,11 @@ class CamBuilder:
                        "HiResCAM": "High-Resolution Class Activation Mapping"}
 
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
-                 transform_fn: Callable[[np.ndarray], torch.Tensor | tf.Tensor] = None,
-                 class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
-                 padding_dim: int = None, seed: int = 11):
+                 transform_fn: Callable[[np.ndarray, Optional[List[Any]]], torch.Tensor | tf.Tensor] = None,
+                 model_apply_fn: Callable[[torch.Tensor | tf.Tensor, Optional[List[Any]]],
+                 torch.Tensor | Tuple[tf.Tensor, tf.Tensor]] = None, class_names: List[str] = None, time_axs: int = 1,
+                 input_transposed: bool = False, ignore_channel_dim: bool = False, model_output_index: int = None,
+                 extend_search: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -34,7 +35,11 @@ class CamBuilder:
             layers among its attributes) representing a convolutional neural network model to be explained.
             Unconventional models should always be set to inference mode before being provided as inputs.
         :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
-            evaluation. This function is also expected to convert data into either PyTorch or TensorFlow tensors.
+            evaluation. This function is also expected to convert data into either PyTorch or TensorFlow tensors. The
+            function may optionally take as a second input a list of objects required by the preprocessing method.
+        :param model_apply_fn: (optional, default is None) A callable function that applies the model to the PyTorch or
+            TensorFlow tensor input and returns target activations (only for TfCamBuilder) and model outputs. The
+            function may optionally take as a second input a list of objects required by the model's forward method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating whether the input signal's time axis is
@@ -60,6 +65,7 @@ class CamBuilder:
         # Initialize attributes
         self.model = model
         self.transform_fn = transform_fn
+        self.model_apply_fn = model_apply_fn
         self.class_names = class_names
         self.extend_search = extend_search
 
@@ -439,7 +445,7 @@ class CamBuilder:
         print(txt)
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
-                                 explainer_type: str, softmax_final: bool) \
+                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any]) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -454,6 +460,7 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
+        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -498,7 +505,8 @@ class CamBuilder:
                              "it.")
 
     def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
-                              explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None) \
+                              explainer_type: str, softmax_final: bool, extra_preprocess_inputs_list: List[Any],
+                              extra_inputs_list: List[Any], data_shape_list: List[Tuple[int, int]] = None) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -514,6 +522,9 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
+        :param extra_preprocess_inputs_list: (mandatory) A list of additional input objects required by the
+            preprocessing method.
+        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
             number of columns.
@@ -535,7 +546,8 @@ class CamBuilder:
         if data_shape_list is None:
             data_shape_list = [data_element.shape for data_element in data_list]
         if self.transform_fn is not None:
-            data_list = [self.transform_fn(data_element) for data_element in data_list]
+            extra_preprocess_inputs_list = extra_preprocess_inputs_list or []
+            data_list = [self.transform_fn(data_element, *extra_preprocess_inputs_list) for data_element in data_list]
 
         # Ensure data have consistent size for batching
         if len(data_list) > 1 and self.padding_dim is None:
@@ -547,7 +559,7 @@ class CamBuilder:
                                      "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
-                                                               softmax_final)
+                                                               softmax_final, extra_inputs_list)
         self.activations = None
         self.gradients = None
         cams = np.stack(cam_list)

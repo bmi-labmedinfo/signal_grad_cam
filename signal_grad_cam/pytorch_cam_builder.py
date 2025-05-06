@@ -2,7 +2,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import Callable, List, Tuple, Dict, Any
+from typing import Callable, List, Tuple, Dict, Any, Optional
 
 from signal_grad_cam import CamBuilder
 
@@ -13,10 +13,11 @@ class TorchCamBuilder(CamBuilder):
     Represents a PyTorch Class Activation Map (CAM) builder, supporting multiple methods such as Grad-CAM and HiResCAM.
     """
 
-    def __init__(self, model: nn.Module | Any, transform_fn: Callable = None, class_names: List[str] = None,
-                 time_axs: int = 1, input_transposed: bool = False, ignore_channel_dim: bool = False,
-                 model_output_index: int = None, extend_search: bool = False, use_gpu: bool = False,
-                 padding_dim: int = None, seed: int = 11):
+    def __init__(self, model: nn.Module | Any, transform_fn: Callable[[np.ndarray, Optional[List[Any]]], torch.Tensor]
+                 = None, model_apply_fn: Callable[[torch.Tensor, Optional[List[Any]]], torch.Tensor] = None,
+                 class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
+                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
+                 use_gpu: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the TorchCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -26,7 +27,11 @@ class TorchCamBuilder(CamBuilder):
             representing a convolutional neural network model to be explained. Unconventional models should always be
             set to inference mode before being provided as inputs.
         :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
-            evaluation. This function is also expected to convert data into either PyTorch or TensorFlow tensors.
+            evaluation. This function is also expected to convert data into PyTorch tensors.The function may optionally
+            take as a second input a list of objects required by the preprocessing method.
+        :param model_apply_fn: (optional, default is None) A callable function that applies the model to the PyTorch
+            tensor input and returns model outputs. The function may optionally take as a second input a list of
+            objects required by the model's forward method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating whether the input signal's time axis is
@@ -48,9 +53,9 @@ class TorchCamBuilder(CamBuilder):
         """
 
         # Initialize attributes
-        super(TorchCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
-                                              time_axs=time_axs, input_transposed=input_transposed,
-                                              ignore_channel_dim=ignore_channel_dim,
+        super(TorchCamBuilder, self).__init__(model=model, transform_fn=transform_fn, model_apply_fn=model_apply_fn,
+                                              class_names=class_names, time_axs=time_axs,
+                                              input_transposed=input_transposed, ignore_channel_dim=ignore_channel_dim,
                                               model_output_index=model_output_index, extend_search=extend_search,
                                               padding_dim=padding_dim, seed=seed)
 
@@ -117,7 +122,8 @@ class TorchCamBuilder(CamBuilder):
             super()._show_layer(name, layer, potential=potential)
 
     def _create_raw_batched_cams(self, data_list: List[np.array], target_class: int, target_layer: nn.Module,
-                                 explainer_type: str, softmax_final: bool) -> Tuple[List[np.ndarray], np.ndarray]:
+                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any]) \
+            -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -131,6 +137,7 @@ class TorchCamBuilder(CamBuilder):
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
+        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -164,7 +171,11 @@ class TorchCamBuilder(CamBuilder):
             data_list = [x.unsqueeze(0) for x in data_list]
         data_batch = torch.stack(data_list)
 
-        outputs = self.model(data_batch)
+        if self.model_apply_fn is None:
+            outputs = self.model(data_batch)
+        else:
+            extra_inputs_list = extra_inputs_list or []
+            outputs = self.model_apply_fn(data_batch, *extra_inputs_list)
         if isinstance(outputs, tuple):
             outputs = outputs[self.model_output_index]
 
