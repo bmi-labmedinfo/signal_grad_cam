@@ -116,7 +116,7 @@ cam_dict, predicted_probs_dict, score_ranges_dict = cam_builder.get_cam(data_lis
 
 # Visualize single channel importance
 selected_channels_indices = [0, 2, 10]
-cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs=predicted_probs_dict,
+cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
 					  cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
 					  target_layers="target_layer_name", desired_channels=selected_channels_indices, 
 					  grid_instructions=(1, len(selected_channels_indices), bar_ranges=score_ranges_dict, 
@@ -124,7 +124,7 @@ cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_
 					  axes_names=("Time (s)", "Amplitude (mV)"))
 
 # Visualize overall importance
-cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs=predicted_probs_dict,
+cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
                                       cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
 				      target_layers="target_layer_name", fig_size=(20 * len(your_data_X), 20), 
 				      grid_instructions=(len(your_data_X), 1), bar_ranges=score_ranges_dict, data_names=item_names 

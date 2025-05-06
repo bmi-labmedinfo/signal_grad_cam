@@ -22,10 +22,9 @@ class CamBuilder:
 
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
                  transform_fn: Callable[[np.ndarray, Optional[List[Any]]], torch.Tensor | tf.Tensor] = None,
-                 model_apply_fn: Callable[[torch.Tensor | tf.Tensor, Optional[List[Any]]],
-                 torch.Tensor | Tuple[tf.Tensor, tf.Tensor]] = None, class_names: List[str] = None, time_axs: int = 1,
-                 input_transposed: bool = False, ignore_channel_dim: bool = False, model_output_index: int = None,
-                 extend_search: bool = False, padding_dim: int = None, seed: int = 11):
+                 class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
+                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
+                 padding_dim: int = None, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -37,9 +36,6 @@ class CamBuilder:
         :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
             evaluation. This function is also expected to convert data into either PyTorch or TensorFlow tensors. The
             function may optionally take as a second input a list of objects required by the preprocessing method.
-        :param model_apply_fn: (optional, default is None) A callable function that applies the model to the PyTorch or
-            TensorFlow tensor input and returns target activations (only for TfCamBuilder) and model outputs. The
-            function may optionally take as a second input a list of objects required by the model's forward method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating whether the input signal's time axis is
@@ -65,7 +61,6 @@ class CamBuilder:
         # Initialize attributes
         self.model = model
         self.transform_fn = transform_fn
-        self.model_apply_fn = model_apply_fn
         self.class_names = class_names
         self.extend_search = extend_search
 
@@ -108,7 +103,8 @@ class CamBuilder:
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
                 data_names: List[str] = None, data_sampling_freq: float = None, dt: float = 10,
                 channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = 100,
-                data_shape_list: List[Tuple[int, int]] = None, time_names: List[str | float] = None,
+                data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[Any] = None,
+                extra_inputs_list: List[Any] = None, time_names: List[str | float] = None,
                 axes_names: Tuple[str | None, str | None] | List[str | None] = None) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
         """
@@ -144,6 +140,10 @@ class CamBuilder:
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
              number of columns.
+        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of additional input objects required by
+            the preprocessing method.
+        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
+            forward method.
         :param time_names: (optional, default is None) A list of strings representing tick names for the time axis.
         :param axes_names: (optional, default is None) A tuple of strings representing names for X and Y axes,
             respectively.
@@ -179,7 +179,11 @@ class CamBuilder:
                 for target_layer in target_layers:
                     cam_list, output_probs, bar_ranges = self.__create_batched_cams(data_list, target_class,
                                                                                     target_layer, explainer_type,
-                                                                                    softmax_final, data_shape_list)
+                                                                                    softmax_final,
+                                                                                    data_shape_list=data_shape_list,
+                                                                                    extra_preprocess_inputs_list=
+                                                                                    extra_preprocess_inputs_list,
+                                                                                    extra_inputs_list=extra_inputs_list)
                     item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
                     cams_dict.update({item_key: cam_list})
                     predicted_probs_dict.update({item_key: output_probs})
@@ -445,7 +449,7 @@ class CamBuilder:
         print(txt)
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
-                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any]) \
+                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any] = None) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -460,7 +464,8 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
+        :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
+            model's forward method.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -505,8 +510,8 @@ class CamBuilder:
                              "it.")
 
     def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
-                              explainer_type: str, softmax_final: bool, extra_preprocess_inputs_list: List[Any],
-                              extra_inputs_list: List[Any], data_shape_list: List[Tuple[int, int]] = None) \
+                              explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
+                              extra_preprocess_inputs_list: List[Any] = None, extra_inputs_list: List[Any] = None) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -522,12 +527,13 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_preprocess_inputs_list: (mandatory) A list of additional input objects required by the
-            preprocessing method.
-        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
             number of columns.
+        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of additional input objects required by
+            the preprocessing method.
+        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
+            forward method.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -551,15 +557,15 @@ class CamBuilder:
 
         # Ensure data have consistent size for batching
         if len(data_list) > 1 and self.padding_dim is None:
-            data_shape_list_processed = [data_element.shape for data_element in data_list]
-            if len(np.unique(np.array(data_shape_list_processed, dtype=object))) != 1:
+            data_shape_list_processed = [tuple(data_element.shape) for data_element in data_list]
+            if len(set(data_shape_list_processed)) != 1:
                 data_list = [np.resize(x, data_shape_list_processed[0]) for x in data_list]
                 self.__print_justify("Input data items have different shapes. Each item has been reshaped to match the "
                                      "first item's dimensions for batching. To prevent this, provide one item at a "
                                      "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
-                                                               softmax_final, extra_inputs_list)
+                                                               softmax_final, extra_inputs_list=extra_inputs_list)
         self.activations = None
         self.gradients = None
         cams = np.stack(cam_list)

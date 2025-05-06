@@ -19,8 +19,7 @@ class TfCamBuilder(CamBuilder):
     """
 
     def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray, Optional[List[Any]]], tf.Tensor]
-                 = None, model_apply_fn: Callable[[tf.Tensor, Optional[List[Any]]], Tuple[tf.Tensor, tf.Tensor]] = None,
-                 class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
+                 = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
                  padding_dim: int = None, seed: int = 11):
         """
@@ -34,9 +33,6 @@ class TfCamBuilder(CamBuilder):
         :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
             evaluation. This function is also expected to convert data into TensorFlow tensors. The function may
             optionally take as a second input a list of objects required by the preprocessing method.
-        :param model_apply_fn: (optional, default is None) A callable function that applies the model to the TensorFlow
-            tensor input and returns target activations and model outputs. The function may optionally take as a second
-            input a list of objects required by the model's forward method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating whether the input signal's time axis is
@@ -56,8 +52,8 @@ class TfCamBuilder(CamBuilder):
         """
 
         # Initialize attributes
-        super(TfCamBuilder, self).__init__(model=model, transform_fn=transform_fn, model_apply_fn=model_apply_fn,
-                                           class_names=class_names, time_axs=time_axs, input_transposed=input_transposed,
+        super(TfCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
+                                           time_axs=time_axs, input_transposed=input_transposed,
                                            ignore_channel_dim=ignore_channel_dim, model_output_index=model_output_index,
                                            extend_search=extend_search, padding_dim=padding_dim, seed=seed)
 
@@ -148,7 +144,7 @@ class TfCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.array], target_class: int,
                                  target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any]) -> Tuple[List[np.ndarray], np.ndarray]:
+                                 extra_inputs_list: List[Any] = None) -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -162,7 +158,8 @@ class TfCamBuilder(CamBuilder):
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (mandatory) A list of additional input objects required by the model's forward method.
+        :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
+            model's forward method.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -190,12 +187,10 @@ class TfCamBuilder(CamBuilder):
             data_list = [tf.expand_dims(x, axis=0) for x in data_list]
         data_batch = tf.stack(data_list, axis=0)
 
-        grad_model = keras.models.Model(self.model.inputs[0], [target_layer.output, self.model.output])
+        grad_model = keras.models.Model(self.model.inputs, [target_layer.output, self.model.output])
+        extra_inputs_list = extra_inputs_list or []
         with tf.GradientTape() as tape:
-            if self.model_apply_fn is None:
-                self.activations, outputs = grad_model(data_batch)
-            else:
-                self.activations, outputs = self.model_apply_fn(data_batch, *extra_inputs_list)
+            self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
 
             if softmax_final:
                 # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
