@@ -21,7 +21,7 @@ class CamBuilder:
                        "HiResCAM": "High-Resolution Class Activation Mapping"}
 
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
-                 transform_fn: Callable[[np.ndarray, Optional[List[Any]]], torch.Tensor | tf.Tensor] = None,
+                 transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
                  padding_dim: int = None, seed: int = 11):
@@ -103,7 +103,7 @@ class CamBuilder:
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
                 data_names: List[str] = None, data_sampling_freq: float = None, dt: float = 10,
                 channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = 100,
-                data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[Any] = None,
+                data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[List[Any]] = None,
                 extra_inputs_list: List[Any] = None, time_names: List[str | float] = None,
                 axes_names: Tuple[str | None, str | None] | List[str | None] = None) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
@@ -139,9 +139,9 @@ class CamBuilder:
             one-dimensional CAM.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
-             number of columns.
-        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of additional input objects required by
-            the preprocessing method.
+            number of columns.
+        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of lists, where the i-th sub-list
+            represents the additional input objects required by the preprocessing method for the i-th input.
         :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
             forward method.
         :param time_names: (optional, default is None) A list of strings representing tick names for the time axis.
@@ -448,9 +448,9 @@ class CamBuilder:
         txt = " - " + addon + f"{name}:\t{type(layer).__name__}"
         print(txt)
 
-    def _create_raw_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
-                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any] = None) \
-            -> Tuple[List[np.ndarray], np.ndarray]:
+    def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int,
+                                 target_layer: str, explainer_type: str, softmax_final: bool,
+                                 extra_inputs_list: List[Any] = None) -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -511,7 +511,7 @@ class CamBuilder:
 
     def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
                               explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
-                              extra_preprocess_inputs_list: List[Any] = None, extra_inputs_list: List[Any] = None) \
+                              extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -530,11 +530,11 @@ class CamBuilder:
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
             number of columns.
-        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of additional input objects required by
-            the preprocessing method.
+        :param extra_preprocess_inputs_list: (optional, defaults is None) A list of lists, where the i-th sub-list
+            represents the additional input objects required by the preprocessing method for the i-th input.
         :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
             forward method.
-
+0
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
                 given setting (defined by algorithm, target layer, and target class).
@@ -552,8 +552,11 @@ class CamBuilder:
         if data_shape_list is None:
             data_shape_list = [data_element.shape for data_element in data_list]
         if self.transform_fn is not None:
-            extra_preprocess_inputs_list = extra_preprocess_inputs_list or []
-            data_list = [self.transform_fn(data_element, *extra_preprocess_inputs_list) for data_element in data_list]
+            if extra_preprocess_inputs_list is not None:
+                data_list = [self.transform_fn(data_element, *extra_preprocess_inputs_list[i]) for i, data_element in
+                             enumerate(data_list)]
+            else:
+                data_list = [self.transform_fn(data_element) for data_element in data_list]
 
         # Ensure data have consistent size for batching
         if len(data_list) > 1 and self.padding_dim is None:

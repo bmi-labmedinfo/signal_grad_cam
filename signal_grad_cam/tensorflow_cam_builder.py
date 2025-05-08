@@ -18,7 +18,7 @@ class TfCamBuilder(CamBuilder):
     HiResCAM.
     """
 
-    def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray, Optional[List[Any]]], tf.Tensor]
+    def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], tf.Tensor]
                  = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
                  padding_dim: int = None, seed: int = 11):
@@ -142,7 +142,7 @@ class TfCamBuilder(CamBuilder):
                 isinstance(layer, keras.layers.Softmax) or isinstance(layer, keras.Sequential)):
             super()._show_layer(name, layer, potential=potential)
 
-    def _create_raw_batched_cams(self, data_list: List[np.array], target_class: int,
+    def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
                                  target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
                                  extra_inputs_list: List[Any] = None) -> Tuple[List[np.ndarray], np.ndarray]:
         """

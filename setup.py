@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="signal_grad_cam",
-    version="0.1.0",
+    version="0.1.1",
     description="SignalGrad-CAM aims at generalising Grad-CAM to one-dimensional applications, while enhancing usability"
                 " and efficiency.",
     keywords="XAI, class activation maps, CNN, time series",

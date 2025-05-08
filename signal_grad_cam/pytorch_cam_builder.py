@@ -13,7 +13,7 @@ class TorchCamBuilder(CamBuilder):
     Represents a PyTorch Class Activation Map (CAM) builder, supporting multiple methods such as Grad-CAM and HiResCAM.
     """
 
-    def __init__(self, model: nn.Module | Any, transform_fn: Callable[[np.ndarray, Optional[List[Any]]], torch.Tensor]
+    def __init__(self, model: nn.Module | Any, transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], torch.Tensor]
                  = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
                  use_gpu: bool = False, padding_dim: int = None, seed: int = 11):
@@ -68,7 +68,8 @@ class TorchCamBuilder(CamBuilder):
         else:
             print("Your PyTorch model has no 'eval' method. Please verify that the networks has been set to "
                   "evaluation mode before the TorchCamBuilder initialization.")
-        self.use_gpu = use_gpu
+        self.use_gpu = use_gpu and torch.cuda.is_available()
+        self.device = "cuda" if self.use_gpu else "cpu"
 
         # Assign the default transform function
         if transform_fn is None:
@@ -117,9 +118,9 @@ class TorchCamBuilder(CamBuilder):
                 isinstance(layer, nn.Softmax) or isinstance(layer, nn.Sigmoid)):
             super()._show_layer(name, layer, potential=potential)
 
-    def _create_raw_batched_cams(self, data_list: List[np.array], target_class: int, target_layer: nn.Module,
-                                 explainer_type: str, softmax_final: bool, extra_inputs_list: List[Any] = None) \
-            -> Tuple[List[np.ndarray], np.ndarray]:
+    def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor], target_class: int,
+                                 target_layer: nn.Module, explainer_type: str, softmax_final: bool,
+                                 extra_inputs_list: List[Any] = None)  -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -167,6 +168,10 @@ class TorchCamBuilder(CamBuilder):
                                             and len(data_list[0].shape) == 1):
             data_list = [x.unsqueeze(0) for x in data_list]
         data_batch = torch.stack(data_list)
+
+        # Set device
+        self.model = self.model.to(self.device)
+        data_batch = data_batch.to(self.device)
 
         extra_inputs_list = extra_inputs_list or []
         outputs = self.model(data_batch, *extra_inputs_list)
