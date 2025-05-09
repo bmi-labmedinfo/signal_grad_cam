@@ -189,7 +189,7 @@ class TfCamBuilder(CamBuilder):
 
         grad_model = keras.models.Model(self.model.inputs, [target_layer.output, self.model.output])
         extra_inputs_list = extra_inputs_list or []
-        with tf.GradientTape() as tape:
+        with (tf.GradientTape() as tape):
             self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
 
             if softmax_final:
@@ -197,9 +197,26 @@ class TfCamBuilder(CamBuilder):
                 # during derivation
                 target_scores = tf.math.log(outputs)
                 target_probs = outputs
+
+                # Adjust results for binary network
+                if len(outputs.shape) == 1:
+                    target_scores = tf.stack([-target_scores, target_scores], axis=1)
+                    target_probs = tf.stack([1 - target_probs, target_probs], axis=1)
+                elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                    target_scores = tf.concat([-target_scores, target_scores], axis=1)
+                    target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
             else:
+                if len(outputs.shape) == 1:
+                    outputs = tf.stack([-outputs, outputs], axis=1)
+                elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                    outputs = tf.concat([-outputs, outputs], axis=1)
                 target_scores = outputs
-                target_probs = tf.nn.softmax(target_scores, axis=1)
+
+                if len(outputs.shape) == 2 and outputs.shape[1] > 1:
+                    target_probs = tf.nn.softmax(target_scores, axis=1)
+                else:
+                    tmp = tf.math.sigmoid(target_scores[:, 1])
+                    target_probs = tf.stack([1 - tmp, tmp], axis=1)
 
             target_scores = target_scores[:, target_class]
             target_probs = target_probs[:, target_class]

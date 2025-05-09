@@ -183,9 +183,26 @@ class TorchCamBuilder(CamBuilder):
             # during derivation
             target_scores = torch.log(outputs)
             target_probs = outputs
+
+            # Adjust results for binary network
+            if len(outputs.shape) == 1:
+                target_scores = torch.stack([-target_scores, target_scores], dim=1)
+                target_probs = torch.stack([1 - target_probs, target_probs], dim=1)
+            elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                target_scores = torch.cat([-target_scores, target_scores], dim=1)
+                target_probs = torch.cat([1 - target_probs, target_probs], dim=1)
         else:
+            if len(outputs.shape) == 1:
+                outputs = torch.stack([-outputs, outputs], dim=1)
+            elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                outputs = torch.cat([-outputs, outputs], dim=1)
             target_scores = outputs
-            target_probs = torch.softmax(target_scores, dim=1)
+
+            if len(outputs.shape) == 2 and outputs.shape[1] > 1:
+                target_probs = torch.softmax(target_scores, dim=1)
+            else:
+                tmp = torch.sigmoid(target_scores[:, 1])
+                target_probs = torch.stack([1 - tmp, tmp], dim=1)
 
         target_probs = target_probs[:, target_class].cpu().detach().numpy()
 
