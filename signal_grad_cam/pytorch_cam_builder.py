@@ -15,8 +15,8 @@ class TorchCamBuilder(CamBuilder):
 
     def __init__(self, model: nn.Module | Any, transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], torch.Tensor]
                  = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
-                 use_gpu: bool = False, padding_dim: int = None, seed: int = 11):
+                 ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
+                 extend_search: bool = False, use_gpu: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the TorchCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -36,6 +36,10 @@ class TorchCamBuilder(CamBuilder):
             during model inference, either by the model itself or by the preprocessing function.
         :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
             dimension. This is useful when the model expects inputs without a singleton channel dimension.
+        :param is_regression_network: (optional, default is False) A boolean indicating whether the network is designed
+            for a regression task. If set to True, the CAM will highlight both positive and negative contributions.
+            While negative contributions are typically irrelevant for classification-based saliency maps, they can be
+            meaningful in regression settings, as they may represent features that decrease the predicted value.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -52,6 +56,7 @@ class TorchCamBuilder(CamBuilder):
         super(TorchCamBuilder, self).__init__(model=model, transform_fn=transform_fn, class_names=class_names,
                                               time_axs=time_axs, input_transposed=input_transposed,
                                               ignore_channel_dim=ignore_channel_dim,
+                                              is_regression_network=is_regression_network,
                                               model_output_index=model_output_index, extend_search=extend_search,
                                               padding_dim=padding_dim, seed=seed)
 
@@ -180,8 +185,8 @@ class TorchCamBuilder(CamBuilder):
 
         if softmax_final:
             # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
-            # during derivation
-            target_scores = torch.log(outputs)
+            # during derivation. Clamp probabilities before log application to avoid null maps for maximum confidence.
+            target_scores = torch.log(torch.clamp(outputs, min=0, max=1 - 1e-6))
             target_probs = outputs
 
             # Adjust results for binary network
@@ -246,7 +251,8 @@ class TorchCamBuilder(CamBuilder):
                 activations[i, :] *= weights[i]
 
         cam = torch.sum(activations, dim=0)
-        cam = torch.relu(cam)
+        if not self.is_regression_network:
+            cam = torch.relu(cam)
         return cam
 
     def _get_hirescam_map(self, is_2d_layer: bool, batch_idx: int) -> torch.Tensor:
@@ -271,7 +277,8 @@ class TorchCamBuilder(CamBuilder):
                 activations[i, :] *= gradients[i, :]
 
         cam = torch.sum(activations, dim=0)
-        cam = torch.relu(cam)
+        if not self.is_regression_network:
+            cam = torch.relu(cam)
         return cam
 
     def __get_activation_forward_hook(self, layer: nn.Module, inputs: Tuple[torch.Tensor, ...], outputs: torch.Tensor) \

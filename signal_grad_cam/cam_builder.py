@@ -23,8 +23,8 @@ class CamBuilder:
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
                  transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, model_output_index: int = None, extend_search: bool = False,
-                 padding_dim: int = None, seed: int = 11):
+                 ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
+                 extend_search: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
         2D-convolutional layers in the network, as well as the final Sigmoid/Softmax activation. Additionally, the CAM
@@ -44,6 +44,10 @@ class CamBuilder:
             during model inference, either by the model itself or by the preprocessing function.
         :param ignore_channel_dim: (optional, default is False) A boolean indicating whether to ignore the channel
             dimension. This is useful when the model expects inputs without a singleton channel dimension.
+        :param is_regression_network: (optional, default is False) A boolean indicating whether the network is designed
+            for a regression task. If set to True, the CAM will highlight both positive and negative contributions.
+            While negative contributions are typically irrelevant for classification-based saliency maps, they can be
+            meaningful in regression settings, as they may represent features that decrease the predicted value.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -67,6 +71,7 @@ class CamBuilder:
         self.time_axs = time_axs
         self.input_transposed = input_transposed
         self.ignore_channel_dim = ignore_channel_dim
+        self.is_regression_network = is_regression_network
         self.model_output_index = model_output_index
         self.padding_dim = padding_dim
         self.original_dims = []
@@ -136,7 +141,8 @@ class CamBuilder:
         :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
         :param aspect_factor: (optional, default is 100) A numerical value to set the aspect ratio of the output signal
-            one-dimensional CAM.
+            one-dimensional CAM. Note that this value should be grater than the length of the input signal considered,
+            otherwise it is set to the length of the considered signal.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
             number of columns.
@@ -648,7 +654,8 @@ class CamBuilder:
         :param dt: (optional, default is 10) A numerical value representing the granularity of the time axis in seconds
             in the output display.
         :param aspect_factor: (optional, default is 100) A numerical value to set the aspect ratio of the output signal
-            one-dimensional CAM.
+            one-dimensional CAM. Note that this value should be grater than the length of the input signal considered,
+            otherwise it is set to the length of the considered signal.
         :param bar_ranges: A tuple containing two np.ndarrays, corresponding to the minimum and maximum importance scores
             per CAM for each item in the input data list, based on a given setting (defined by algorithm, target
             layer, and target class).
@@ -674,7 +681,7 @@ class CamBuilder:
             norm = self.__get_norm(map)
 
             if map.shape[1] == 1:
-                aspect = int(map.shape[0] / aspect_factor)
+                aspect = int(map.shape[0] / aspect_factor) if map.shape[0] <= aspect_factor else 1
                 map = np.transpose(map)
             else:
                 if is_2d_layer:
