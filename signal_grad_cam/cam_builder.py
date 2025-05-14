@@ -92,15 +92,20 @@ class CamBuilder:
         # Show available 1D or 2D convolutional layers
         print()
         print("SEARCHING FOR NETWORK LAYERS:")
-        self.__print_justify("Please, verify that your network contains at least one 1D or 2D convolutional layer "
-                             "and note the names of the layers that are of interest to you. If the desired layer is not"
-                             " present in the following list, it can still be accessed by the name used in the network "
-                             "to identify it.\nVerify whether the model ends with an activation function from the "
-                             "Softmax family (such as Sigmoid o Softmax). Even if this activation function is not "
-                             "present in the following list, ensure to check if it is applied at the end of the "
-                             "network. Please make sure that the provided model is set in inference ('eval') mode for "
-                             "PyTorch models and that TensorFlow/Keras models have been built (they must have the "
-                             "specific 'inputs' and 'output' attributes)\nNetwork layers found (name: type)")
+        self.__print_justify("Please verify that your network contains at least one 1D or 2D convolutional layer, "
+                             "and take note of the names of the layers that are of interest to you. If the desired "
+                             "layer is not present in the list below, it can still be accessed using the name by which "
+                             "it is defined in the network.\n"
+                             "Also, check whether the model ends with an activation function from the Softmax family "
+                             "(such as Sigmoid or Softmax). Even if this activation function is not listed below, you "
+                             "must indicate its presence using the appropriate argument in the 'get_cam' function. "
+                             "Note that in binary classification networks (those ending with a Sigmoid function), "
+                             "overconfident predictions can cause the Sigmoid to saturate, leading to empty or null "
+                             "maps. To prevent this, modify your network to output logits directly.\n"
+                             "Make sure the provided model is set to inference mode ('eval') if using PyTorch. For "
+                             "TensorFlow/Keras models, ensure the model is built—i.e., it must have defined 'inputs' "
+                             "and 'output' attributes.\n"
+                             "Network layers found (name: type):")
         self._get_layers_pool(show=True, extend_search=extend_search)
         print()
 
@@ -578,8 +583,8 @@ class CamBuilder:
             data_shape_list_processed = [tuple(data_element.shape) for data_element in data_list]
             if len(set(data_shape_list_processed)) != 1:
                 data_list = [np.resize(x, data_shape_list_processed[0]) for x in data_list]
-                self.__print_justify("Input data items have different shapes. Each item has been reshaped to match the "
-                                     "first item's dimensions for batching. To prevent this, provide one item at a "
+                self.__print_justify("\nInput data items have different shapes. Each item has been reshaped to match the"
+                                     " first item's dimensions for batching. To prevent this, provide one item at a "
                                      "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
