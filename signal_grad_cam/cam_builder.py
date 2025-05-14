@@ -110,7 +110,7 @@ class CamBuilder:
                 channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = 100,
                 data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[List[Any]] = None,
                 extra_inputs_list: List[Any] = None, time_names: List[str | float] = None,
-                axes_names: Tuple[str | None, str | None] | List[str | None] = None) \
+                axes_names: Tuple[str | None, str | None] | List[str | None] = None, eps: float = 1e-6) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
         """
         Allows the user to request Class Activation Maps (CAMs) for a given list of inputs, a set of algorithms,
@@ -153,6 +153,8 @@ class CamBuilder:
         :param time_names: (optional, default is None) A list of strings representing tick names for the time axis.
         :param axes_names: (optional, default is None) A tuple of strings representing names for X and Y axes,
             respectively.
+        :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
+            to avoid null or None results.
 
         :return:
             - cams_dict: A dictionary storing a list of CAMs. Each list contains CAMs for each item in the input data
@@ -189,7 +191,8 @@ class CamBuilder:
                                                                                     data_shape_list=data_shape_list,
                                                                                     extra_preprocess_inputs_list=
                                                                                     extra_preprocess_inputs_list,
-                                                                                    extra_inputs_list=extra_inputs_list)
+                                                                                    extra_inputs_list=extra_inputs_list,
+                                                                                    esp=eps)
                     item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
                     cams_dict.update({item_key: cam_list})
                     predicted_probs_dict.update({item_key: output_probs})
@@ -456,7 +459,8 @@ class CamBuilder:
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int,
                                  target_layer: str, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None) -> Tuple[List[np.ndarray], np.ndarray]:
+                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+            -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -472,6 +476,8 @@ class CamBuilder:
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
+            to avoid null or None results.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -517,7 +523,8 @@ class CamBuilder:
 
     def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
                               explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
-                              extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None) \
+                              extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
+                              eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -540,7 +547,9 @@ class CamBuilder:
             represents the additional input objects required by the preprocessing method for the i-th input.
         :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
             forward method.
-0
+        :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
+            to avoid null or None results.
+
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
                 given setting (defined by algorithm, target layer, and target class).
@@ -574,7 +583,8 @@ class CamBuilder:
                                      "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
-                                                               softmax_final, extra_inputs_list=extra_inputs_list)
+                                                               softmax_final, extra_inputs_list=extra_inputs_list,
+                                                               eps=eps)
         self.activations = None
         self.gradients = None
         cams = np.stack(cam_list)
@@ -897,7 +907,7 @@ class CamBuilder:
             - is_2d_layer: A boolean indicating whether the target layers 2D-convolutional layer.
         """
 
-        raise ValueError(target_layer + " must be a 1D or 2D convolutional layer.")
+        raise ValueError(str(target_layer) + " must be a 1D or 2D convolutional layer.")
 
     @staticmethod
     def __normalize_cams(cams: np.ndarray, is_2d_layer: bool) -> Tuple[np.ndarray, Tuple[np.ndarray, np.ndarray]]:

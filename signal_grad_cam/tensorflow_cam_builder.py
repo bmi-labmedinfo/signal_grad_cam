@@ -150,7 +150,8 @@ class TfCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
                                  target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None) -> Tuple[List[np.ndarray], np.ndarray]:
+                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+            -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -166,6 +167,8 @@ class TfCamBuilder(CamBuilder):
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
+            to avoid null or None results.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -199,31 +202,32 @@ class TfCamBuilder(CamBuilder):
             self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
 
             if softmax_final:
-                # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
-                # during derivation. Clamp probabilities before log application to avoid null maps for maximum
-                # confidence.
-                target_scores = tf.math.log(tf.clip_by_value(outputs, 0, 1.0 - 1e-6))
                 target_probs = outputs
-
-                # Adjust results for binary network
-                if len(outputs.shape) == 1:
-                    target_scores = tf.stack([-target_scores, target_scores], axis=1)
-                    target_probs = tf.stack([1 - target_probs, target_probs], axis=1)
-                elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
-                    target_scores = tf.concat([-target_scores, target_scores], axis=1)
-                    target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
+                if len(outputs.shape) == 2 and outputs.shape[1] > 1:
+                    # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
+                    # during derivation. Clamp probabilities before log application to avoid null maps for maximum
+                    # confidence.
+                    target_scores = tf.math.log(tf.clip_by_value(outputs, eps, 1.0 - eps))
+                else:
+                    # Adjust results for binary network
+                    target_scores = tf.math.logit(outputs, eps=eps)
+                    if len(outputs.shape) == 1:
+                        target_scores = tf.stack([-target_scores, target_scores], axis=1)
+                        target_probs = tf.stack([1 - target_probs, target_probs], axis=1)
+                    else:
+                        target_scores = tf.concat([-target_scores, target_scores], axis=1)
+                        target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
             else:
-                if len(outputs.shape) == 1:
-                    outputs = tf.stack([-outputs, outputs], axis=1)
-                elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
-                    outputs = tf.concat([-outputs, outputs], axis=1)
                 target_scores = outputs
-
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                     target_probs = tf.nn.softmax(target_scores, axis=1)
                 else:
-                    tmp = tf.math.sigmoid(target_scores[:, 1])
-                    target_probs = tf.stack([1 - tmp, tmp], axis=1)
+                    if len(outputs.shape) == 1:
+                        target_scores = tf.stack([-outputs, outputs], axis=1)
+                    elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                        target_scores = tf.concat([-outputs, outputs], axis=1)
+                    p = tf.math.sigmoid(outputs)
+                    target_probs = tf.stack([1 - p, p], axis=1)
 
             target_scores = target_scores[:, target_class]
             target_probs = target_probs[:, target_class]

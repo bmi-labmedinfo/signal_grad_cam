@@ -125,7 +125,8 @@ class TorchCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor], target_class: int,
                                  target_layer: nn.Module, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None)  -> Tuple[List[np.ndarray], np.ndarray]:
+                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+            -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
@@ -141,6 +142,8 @@ class TorchCamBuilder(CamBuilder):
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
+            to avoid null or None results.
 
         :return:
             - cam_list: A list of np.ndarray containing CAMs for each item in the input data list, corresponding to the
@@ -184,30 +187,32 @@ class TorchCamBuilder(CamBuilder):
             outputs = outputs[self.model_output_index]
 
         if softmax_final:
-            # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
-            # during derivation. Clamp probabilities before log application to avoid null maps for maximum confidence.
-            target_scores = torch.log(torch.clamp(outputs, min=0, max=1 - 1e-6))
             target_probs = outputs
-
-            # Adjust results for binary network
-            if len(outputs.shape) == 1:
-                target_scores = torch.stack([-target_scores, target_scores], dim=1)
-                target_probs = torch.stack([1 - target_probs, target_probs], dim=1)
-            elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
-                target_scores = torch.cat([-target_scores, target_scores], dim=1)
-                target_probs = torch.cat([1 - target_probs, target_probs], dim=1)
+            if len(outputs.shape) == 2 and outputs.shape[1] > 1:
+                # Approximate Softmax inversion formula logit = log(prob) + constant, as the constant is negligible
+                # during derivation. Clamp probabilities before log application to avoid null maps for maximum
+                # confidence.
+                target_scores = torch.log(torch.clamp(outputs, min=eps, max=1 - eps))
+            else:
+                # Adjust results for binary networks
+                target_scores = torch.logit(outputs, eps=eps)
+                if len(outputs.shape) == 1:
+                    target_scores = torch.stack([-target_scores, target_scores], dim=1)
+                    target_probs = torch.stack([1 - target_probs, target_probs], dim=1)
+                else:
+                    target_scores = torch.cat([-target_scores, target_scores], dim=1)
+                    target_probs = torch.cat([1 - target_probs, target_probs], dim=1)
         else:
-            if len(outputs.shape) == 1:
-                outputs = torch.stack([-outputs, outputs], dim=1)
-            elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
-                outputs = torch.cat([-outputs, outputs], dim=1)
             target_scores = outputs
-
             if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                 target_probs = torch.softmax(target_scores, dim=1)
             else:
-                tmp = torch.sigmoid(target_scores[:, 1])
-                target_probs = torch.stack([1 - tmp, tmp], dim=1)
+                if len(outputs.shape) == 1:
+                    target_scores = torch.stack([-outputs, outputs], dim=1)
+                elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
+                    target_scores = torch.cat([-outputs, outputs], dim=1)
+                p = torch.sigmoid(outputs)
+                target_probs = torch.stack([1 - p, p], dim=1)
 
         target_probs = target_probs[:, target_class].cpu().detach().numpy()
 
