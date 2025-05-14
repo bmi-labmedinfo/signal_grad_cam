@@ -207,12 +207,13 @@ class TorchCamBuilder(CamBuilder):
             if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                 target_probs = torch.softmax(target_scores, dim=1)
             else:
+                p = torch.sigmoid(outputs)
                 if len(outputs.shape) == 1:
                     target_scores = torch.stack([-outputs, outputs], dim=1)
+                    target_probs = torch.stack([1 - p, p], dim=1)
                 elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
                     target_scores = torch.cat([-outputs, outputs], dim=1)
-                p = torch.sigmoid(outputs)
-                target_probs = torch.stack([1 - p, p], dim=1)
+                    target_probs = torch.cat([1 - p, p], dim=1)
 
         target_probs = target_probs[:, target_class].cpu().detach().numpy()
 

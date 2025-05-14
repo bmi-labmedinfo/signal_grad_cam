@@ -222,12 +222,13 @@ class TfCamBuilder(CamBuilder):
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                     target_probs = tf.nn.softmax(target_scores, axis=1)
                 else:
+                    p = tf.math.sigmoid(outputs)
                     if len(outputs.shape) == 1:
                         target_scores = tf.stack([-outputs, outputs], axis=1)
+                        target_probs = tf.stack([1 - p, p], axis=1)
                     elif len(outputs.shape) == 2 and outputs.shape[1] == 1:
                         target_scores = tf.concat([-outputs, outputs], axis=1)
-                    p = tf.math.sigmoid(outputs)
-                    target_probs = tf.stack([1 - p, p], axis=1)
+                        target_probs = tf.concat([1 - p, p], axis=1)
 
             target_scores = target_scores[:, target_class]
             target_probs = target_probs[:, target_class]
