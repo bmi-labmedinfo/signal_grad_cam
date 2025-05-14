@@ -164,7 +164,7 @@ def tensorflow_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=True,
                                                             data_names=data_names, results_dir_path=results_dir,
-                                                            data_sampling_freq=fc, dt=1)
+                                                            data_sampling_freq=fc, dt=1, aspect_factor=20)
 
     # Explain different input channels
     comparison_algorithm = "Grad-CAM"
@@ -179,6 +179,6 @@ def tensorflow_model_testing():
 
 
 # Main
-pytorch_model_testing()
+#pytorch_model_testing()
 print("\n===========================================================================================================\n")
 tensorflow_model_testing()

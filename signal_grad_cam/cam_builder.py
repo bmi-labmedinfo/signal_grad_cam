@@ -192,7 +192,7 @@ class CamBuilder:
                                                                                     extra_preprocess_inputs_list=
                                                                                     extra_preprocess_inputs_list,
                                                                                     extra_inputs_list=extra_inputs_list,
-                                                                                    esp=eps)
+                                                                                    eps=eps)
                     item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
                     cams_dict.update({item_key: cam_list})
                     predicted_probs_dict.update({item_key: output_probs})
@@ -691,7 +691,7 @@ class CamBuilder:
             norm = self.__get_norm(map)
 
             if map.shape[1] == 1:
-                aspect = int(map.shape[0] / aspect_factor) if map.shape[0] <= aspect_factor else 1
+                aspect = int(map.shape[0] / aspect_factor) if map.shape[0] > aspect_factor else 100
                 map = np.transpose(map)
             else:
                 if is_2d_layer:
@@ -706,14 +706,9 @@ class CamBuilder:
             self.__set_colorbar(bar_ranges, i)
 
             # Set title
-            '''if map.shape[0] > 1 and is_2d_layer:
-                title_h = 1
-                plt.subplots_adjust(top=0.85, bottom=0.2)
-            else:
-                title_h = 0.98'''
             plt.title("CAM for class '" + str(self.class_names[target_class]) + "' (confidence = " +
                       str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
-                      str(self.class_names[data_labels[i]]))#, y=title_h)
+                      str(self.class_names[data_labels[i]]))
 
             # Set axis
             self.__set_axes(map, data_sampling_freq, dt, channel_names, time_names=time_names, axes_names=axes_names)
