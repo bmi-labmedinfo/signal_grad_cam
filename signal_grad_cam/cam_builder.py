@@ -111,10 +111,11 @@ class CamBuilder:
 
     def get_cam(self, data_list: List[np.ndarray], data_labels: List[int], target_classes: int | List[int],
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
-                data_names: List[str] = None, data_sampling_freq: float = None, dt: float = 10,
-                channel_names: List[str | float] = None, results_dir_path: str = None, aspect_factor: float = 100,
-                data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[List[Any]] = None,
-                extra_inputs_list: List[Any] = None, time_names: List[str | float] = None,
+                data_names: List[str] = None, contrastive_foil_classes: int | List[int] = None,
+                data_sampling_freq: float = None, dt: float = 10, channel_names: List[str | float] = None,
+                results_dir_path: str = None, aspect_factor: float = 100, data_shape_list: List[Tuple[int, int]] = None,
+                extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
+                time_names: List[str | float] = None,
                 axes_names: Tuple[str | None, str | None] | List[str | None] = None, eps: float = 1e-6) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
         """
@@ -137,6 +138,9 @@ class CamBuilder:
             activation function.
         :param data_names: (optional, default is None) A list of strings where each string represents the name of an
             input item.
+        :param contrastive_foil_classes: (optional, default is None) An integer or list of integers representing the
+            comparative classes (foils) for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
         :param data_sampling_freq: (optional, default is None) A numerical value representing the sampling frequency of
             signal inputs in samples per second.
         :param dt: (optional, default is 10) A numerical value representing the granularity of the time axis in seconds
@@ -176,8 +180,8 @@ class CamBuilder:
             data_names = ["item" + str(i) for i in range(len(data_list))]
 
         # Check input types
-        target_classes, explainer_types, target_layers = self.__check_input_types(target_classes, explainer_types,
-                                                                                  target_layers)
+        target_classes, explainer_types, target_layers, contrastive_foil_classes = self.__check_input_types(
+            target_classes, explainer_types, target_layers, contrastive_foil_classes)
         for explainer_type in explainer_types:
             if explainer_type not in self.explainer_types:
                 raise ValueError("'explainer_types' should be an explainer identifier or a list of explainer "
@@ -190,21 +194,28 @@ class CamBuilder:
         for explainer_type in explainer_types:
             for target_class in target_classes:
                 for target_layer in target_layers:
-                    cam_list, output_probs, bar_ranges = self.__create_batched_cams(data_list, target_class,
-                                                                                    target_layer, explainer_type,
-                                                                                    softmax_final,
-                                                                                    data_shape_list=data_shape_list,
-                                                                                    extra_preprocess_inputs_list=
-                                                                                    extra_preprocess_inputs_list,
-                                                                                    extra_inputs_list=extra_inputs_list,
-                                                                                    eps=eps)
-                    item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
-                    cams_dict.update({item_key: cam_list})
-                    predicted_probs_dict.update({item_key: output_probs})
-                    bar_ranges_dict.update({item_key: bar_ranges})
-                    self.__display_output(data_labels, target_class, explainer_type, target_layer, cam_list, output_probs,
-                                          results_dir_path, data_names, data_sampling_freq, dt, aspect_factor,
-                                          bar_ranges, channel_names, time_names=time_names, axes_names=axes_names)
+                    for contrastive_foil_class in contrastive_foil_classes:
+                        cam_list, output_probs, bar_ranges = self.__create_batched_cams(data_list, target_class,
+                                                                                        target_layer, explainer_type,
+                                                                                        softmax_final,
+                                                                                        data_shape_list=data_shape_list,
+                                                                                        extra_preprocess_inputs_list=
+                                                                                        extra_preprocess_inputs_list,
+                                                                                        extra_inputs_list=
+                                                                                        extra_inputs_list,
+                                                                                        contrastive_foil_class=
+                                                                                        contrastive_foil_class,
+                                                                                        eps=eps)
+                        item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
+                        if contrastive_foil_class is not None:
+                            item_key += "_foil" + str(contrastive_foil_class)
+                        cams_dict.update({item_key: cam_list})
+                        predicted_probs_dict.update({item_key: output_probs})
+                        bar_ranges_dict.update({item_key: bar_ranges})
+                        self.__display_output(data_labels, target_class, explainer_type, target_layer, cam_list, output_probs,
+                                              results_dir_path, data_names, data_sampling_freq, dt, aspect_factor,
+                                              bar_ranges, channel_names, time_names=time_names, axes_names=axes_names,
+                                              contrastive_foil_class=contrastive_foil_class)
 
         return cams_dict, predicted_probs_dict, bar_ranges_dict
 
@@ -213,7 +224,8 @@ class CamBuilder:
                                   predicted_probs_dict: Dict[str, np.ndarray], cams_dict: Dict[str, List[np.ndarray]],
                                   explainer_types: str | List[str], target_classes: int | List[int],
                                   target_layers: str | List[str], target_item_ids: List[int] = None,
-                                  data_names: List[str] = None, grid_instructions: Tuple[int, int] = None,
+                                  data_names: List[str] = None, contrastive_foil_classes: int | List[int] = None,
+                                  grid_instructions: Tuple[int, int] = None,
                                   bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
                                   results_dir_path: str = None, data_sampling_freq: float = None, dt: float = 10,
                                   channel_names: List[str | float] = None, time_names: List[str | float] = None,
@@ -242,11 +254,14 @@ class CamBuilder:
             among the items in the input data list.
         :param data_names: (optional, default is None) A list of strings where each string represents the name of an
             input item.
+        :param contrastive_foil_classes: (optional, default is None) An integer or list of integers representing the
+            comparative classes (foils) for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
         :param grid_instructions: (optional, default is None) A tuple of integers defining the desired tabular layout
             for figure subplots. The expected format is number of columns (width) x number of rows (height).
         :param bar_ranges_dict: A dictionary storing a tuple of np.ndarrays. Each tuple contains two np.ndarrays
-                corresponding to the minimum and maximum importance scores per CAM for each item in the input data list,
-                based on a given setting (defined by algorithm, target layer, and target class).
+            corresponding to the minimum and maximum importance scores per CAM for each item in the input data list,
+            based on a given setting (defined by algorithm, target layer, and target class).
         :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
         :param data_sampling_freq: (optional, default is None) A numerical value representing the sampling frequency of
@@ -263,8 +278,8 @@ class CamBuilder:
         """
 
         # Check input types
-        target_classes, explainer_types, target_layers = self.__check_input_types(target_classes, explainer_types,
-                                                                                  target_layers)
+        target_classes, explainer_types, target_layers, contrastive_foil_classes = self.__check_input_types(
+            target_classes, explainer_types, target_layers, contrastive_foil_classes)
         if target_item_ids is None:
             target_item_ids = list(range(len(data_list)))
 
@@ -279,36 +294,40 @@ class CamBuilder:
         for explainer_type in explainer_types:
             for target_layer in target_layers:
                 for target_class in target_classes:
-                    plt.figure(figsize=fig_size)
-                    for i in range(n_items):
-                        cam, item, batch_idx, item_key = self.__get_data_for_plots(data_list, i, target_item_ids,
-                                                                                   cams_dict, explainer_type,
-                                                                                   target_layer, target_class)
+                    for contrastive_foil_class in contrastive_foil_classes:
+                        plt.figure(figsize=fig_size)
+                        for i in range(n_items):
+                            cam, item, batch_idx, item_key = self.__get_data_for_plots(data_list, i, target_item_ids,
+                                                                                       cams_dict, explainer_type,
+                                                                                       target_layer, target_class,
+                                                                                       contrastive_foil_class)
 
-                        plt.subplot(w, h, i + 1)
-                        plt.imshow(item)
-                        aspect = "auto" if cam.shape[0] / cam.shape[1] < 0.1 else None
+                            plt.subplot(w, h, i + 1)
+                            plt.imshow(item)
+                            aspect = "auto" if cam.shape[0] / cam.shape[1] < 0.1 else None
 
-                        norm = self.__get_norm(cam)
-                        map = plt.imshow(cam, cmap="jet", aspect=aspect, norm=norm)
-                        self.__set_colorbar(bar_ranges_dict[item_key], i)
-                        map.set_alpha(0.3)
+                            norm = self.__get_norm(cam)
+                            map = plt.imshow(cam, cmap="jet", aspect=aspect, norm=norm)
+                            self.__set_colorbar(bar_ranges_dict[item_key], i)
+                            map.set_alpha(0.3)
 
-                        self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names=time_names,
-                                        axes_names=axes_names)
-                        data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
-                        plt.title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
-                                                       predicted_probs_dict))
+                            self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names=time_names,
+                                            axes_names=axes_names)
+                            data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
+                            plt.title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
+                                                           predicted_probs_dict, contrastive_foil_class))
 
-                    # Store or show CAM
-                    self.__display_plot(results_dir_path, explainer_type, target_layer, target_class)
+                        # Store or show CAM
+                        self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
+                                            contrastive_foil_class)
 
     def single_channel_output_display(self, data_list: List[np.ndarray], data_labels: List[int],
                                       predicted_probs_dict: Dict[str, np.ndarray],
                                       cams_dict: Dict[str, List[np.ndarray]], explainer_types: str | List[str],
                                       target_classes: int | List[int], target_layers: str | List[str],
                                       target_item_ids: List[int] = None, desired_channels: List[int] = None,
-                                      data_names: List[str] = None, grid_instructions: Tuple[int, int] = None,
+                                      data_names: List[str] = None, contrastive_foil_classes: int | List[int] = None,
+                                      grid_instructions: Tuple[int, int] = None,
                                       bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
                                       results_dir_path: str = None, data_sampling_freq: float = None, dt: float = 10,
                                       channel_names: List[str | float] = None, time_names: List[str | float] = None,
@@ -340,6 +359,9 @@ class CamBuilder:
             to be displayed.
         :param data_names: (optional, default is None) A list of strings where each string represents the name of an
             input item.
+        :param contrastive_foil_classes: (optional, default is None) An integer or list of integers representing the
+            comparative classes (foils) for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
         :param grid_instructions: (optional, default is None) A tuple of integers defining the desired tabular layout
             for figure subplots. The expected format is number of columns (width) x number of rows (height).
         :param bar_ranges_dict: A dictionary storing a tuple of np.ndarrays. Each tuple contains two np.ndarrays
@@ -365,8 +387,8 @@ class CamBuilder:
         """
 
         # Check input types
-        target_classes, explainer_types, target_layers = self.__check_input_types(target_classes, explainer_types,
-                                                                                  target_layers)
+        target_classes, explainer_types, target_layers, contrastive_foil_classes = self.__check_input_types(
+            target_classes, explainer_types, target_layers, contrastive_foil_classes)
         if desired_channels is None:
             try:
                 desired_channels = list(range(data_list[0].shape[1]))
@@ -387,42 +409,44 @@ class CamBuilder:
         for explainer_type in explainer_types:
             for target_layer in target_layers:
                 for target_class in target_classes:
-                    for i in range(n_items):
-                        plt.figure(figsize=fig_size)
-                        cam, item, batch_idx, item_key = self.__get_data_for_plots(data_list, i, target_item_ids,
-                                                                                   cams_dict, explainer_type,
-                                                                                   target_layer, target_class)
+                    for contrastive_foil_class in contrastive_foil_classes:
+                        for i in range(n_items):
+                            plt.figure(figsize=fig_size)
+                            cam, item, batch_idx, item_key = self.__get_data_for_plots(data_list, i, target_item_ids,
+                                                                                       cams_dict, explainer_type,
+                                                                                       target_layer, target_class,
+                                                                                       contrastive_foil_class)
 
-                        # Cross-CAM normalization
-                        minimum = np.min(cam)
-                        maximum = np.max(cam)
+                            # Cross-CAM normalization
+                            minimum = np.min(cam)
+                            maximum = np.max(cam)
 
-                        data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
-                        desired_channels = desired_channels if desired_channels is not None else range(cam.shape[1])
-                        for j in range(len(desired_channels)):
-                            channel = desired_channels[j]
-                            plt.subplot(w, h, j + 1)
-                            try:
-                                cam_j = cam[channel, :]
-                            except IndexError:
-                                cam_j = cam[0, :]
-                            item_j = item[:, channel] if item.shape[0] == len(cam_j) else item[channel, :]
-                            plt.plot(item_j, color="black", linewidth=line_width)
-                            plt.scatter(np.arange(len(item_j)), item_j, c=cam_j, cmap="jet", marker=".",
-                                        s=marker_width, norm=None, vmin=minimum, vmax=maximum)
-                            self.__set_colorbar(bar_ranges_dict[item_key], i)
+                            data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
+                            desired_channels = desired_channels if desired_channels is not None else range(cam.shape[1])
+                            for j in range(len(desired_channels)):
+                                channel = desired_channels[j]
+                                plt.subplot(w, h, j + 1)
+                                try:
+                                    cam_j = cam[channel, :]
+                                except IndexError:
+                                    cam_j = cam[0, :]
+                                item_j = item[:, channel] if item.shape[0] == len(cam_j) else item[channel, :]
+                                plt.plot(item_j, color="black", linewidth=line_width)
+                                plt.scatter(np.arange(len(item_j)), item_j, c=cam_j, cmap="jet", marker=".",
+                                            s=marker_width, norm=None, vmin=minimum, vmax=maximum)
+                                self.__set_colorbar(bar_ranges_dict[item_key], i)
 
-                            if channel_names is None:
-                                channel_names = ["Channel " + str(c) for c in desired_channels]
-                            self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names,
-                                            axes_names=axes_names, only_x=True)
-                            plt.title(channel_names[j])
-                        plt.suptitle(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
-                                                          predicted_probs_dict))
+                                if channel_names is None:
+                                    channel_names = ["Channel " + str(c) for c in desired_channels]
+                                self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names,
+                                                axes_names=axes_names, only_x=True)
+                                plt.title(channel_names[j])
+                            plt.suptitle(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
+                                                              predicted_probs_dict, contrastive_foil_class))
 
-                        # Store or show CAM
-                        self.__display_plot(results_dir_path, explainer_type, target_layer, target_class, data_name,
-                                            is_channel=True)
+                            # Store or show CAM
+                            self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
+                                                contrastive_foil_class, data_name, is_channel=True)
 
     def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
             -> Dict[str, torch.nn.Module | tf.keras.layers.Layer | Any]:
@@ -464,7 +488,8 @@ class CamBuilder:
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int,
                                  target_layer: str, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+                                 extra_inputs_list: List[Any] = None, contrastive_foil_class: int = None,
+                                 eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -481,6 +506,9 @@ class CamBuilder:
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
+            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
+            classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -529,7 +557,7 @@ class CamBuilder:
     def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
                               explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
                               extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
-                              eps: float = 1e-6) \
+                              contrastive_foil_class: int = None, eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -552,6 +580,9 @@ class CamBuilder:
             represents the additional input objects required by the preprocessing method for the i-th input.
         :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
             forward method.
+        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
+            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
+            classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -589,7 +620,7 @@ class CamBuilder:
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
                                                                softmax_final, extra_inputs_list=extra_inputs_list,
-                                                               eps=eps)
+                                                               contrastive_foil_class=contrastive_foil_class, eps=eps)
         self.activations = None
         self.gradients = None
         cams = np.stack(cam_list)
@@ -645,7 +676,7 @@ class CamBuilder:
                          data_names: List[str], data_sampling_freq: float = None, dt: float = 10,
                          aspect_factor: float = 100, bar_ranges: Tuple[np.ndarray, np.ndarray] = None,
                          channel_names: List[str | float] = None, time_names: List[str | float] = None,
-                         axes_names: Tuple[str | None, str | None] = None) -> None:
+                         axes_names: Tuple[str | None, str | None] = None, contrastive_foil_class: int = None) -> None:
         """
         Create plots displaying the obtained CAMs, set their axes, and show them as multiple figures or as ".png" files.
 
@@ -679,6 +710,9 @@ class CamBuilder:
         :param time_names: (optional, default is None) A list of strings representing tick names for the time axis.
         :param axes_names: (optional, default is None) A tuple of strings representing names for X and Y axes,
             respectively.
+        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
+            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
+            classical paradigm.
         """
 
         if not os.path.exists(results_dir_path):
@@ -711,19 +745,26 @@ class CamBuilder:
             self.__set_colorbar(bar_ranges, i)
 
             # Set title
-            plt.title("CAM for class '" + str(self.class_names[target_class]) + "' (confidence = " +
-                      str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
-                      str(self.class_names[data_labels[i]]))
+            if contrastive_foil_class is None:
+                plt.title("CAM for class '" + self.class_names[target_class] + "' (confidence = " +
+                          str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
+                          self.class_names[data_labels[i]])
+            else:
+                plt.title("Why '" + self.class_names[target_class] + "' (confidence = " +
+                          str(np.round(predicted_probs[i][0] * 100, 2)) + "%), rather than '" +
+                          self.class_names[contrastive_foil_class] + "'(confidence = " +
+                          str(np.round(predicted_probs[i][1] * 100, 2)) + "%)?")
 
             # Set axis
             self.__set_axes(map, data_sampling_freq, dt, channel_names, time_names=time_names, axes_names=axes_names)
 
             # Store or show CAM
-            self.__display_plot(results_dir_path, explainer_type, target_layer, target_class, data_name)
+            self.__display_plot(results_dir_path, explainer_type, target_layer, target_class, contrastive_foil_class,
+                                data_name)
 
     def __get_data_for_plots(self, data_list: List[np.ndarray], i: int, target_item_ids: List[int],
                              cams_dict: Dict[str, List[np.ndarray]], explainer_type: str, target_layer: str,
-                             target_class: int) -> Tuple[np.ndarray, np.ndarray, int, str]:
+                             target_class: int, contrastive_foil_class: int) -> Tuple[np.ndarray, np.ndarray, int, str]:
         """
         Prepares input data and CAMs to be plotted, identifying the string key to retrieve CAMs, probabilities and
         ranges from the corresponding dictionaries.
@@ -740,6 +781,9 @@ class CamBuilder:
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
             used to retrieve the layer from the class attributes.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
+        :param contrastive_foil_class: (mandatory) An integer representing the comparative classes (foils) for the
+            explanation in the context of Contrastive Explanations. If None, the explanation would follow the classical
+            paradigm.
 
         :return:
             - cam: The CAM for the given setting (defined by algorithm, target layer, and target class), corresponding
@@ -752,6 +796,8 @@ class CamBuilder:
         batch_idx = target_item_ids[i]
         item = data_list[batch_idx]
         item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
+        if contrastive_foil_class is not None:
+            item_key += "_foil" + str(contrastive_foil_class)
         cam = cams_dict[item_key][batch_idx]
 
         item_dims = item.shape
@@ -823,7 +869,7 @@ class CamBuilder:
                 plt.ylabel(axes_names[1])
 
     def __get_cam_title(self, item_name: str, target_class: int, data_labels: List[int], batch_idx: int, item_key: str,
-                        predicted_probs: Dict[str, np.ndarray]) -> str:
+                        predicted_probs: Dict[str, np.ndarray], contrastive_foil_class: int) -> str:
         """
         Builds the CAM title for a given item and target class.
 
@@ -836,18 +882,28 @@ class CamBuilder:
             and target class).
         :param predicted_probs: (mandatory) A np.ndarray, representing the inferred class probabilities for each item in
             the input list.
+        :param contrastive_foil_class: (mandatory) An integer representing the comparative class (foil) for the
+            explanation in the context of Contrastive Explanations. If None, the explanation would follow the classical
+            paradigm.
 
         :return:
             - title: A string representing the title of the CAM for a given item and target class.
         """
+        if contrastive_foil_class is None:
+            title = ("'" + item_name + "': CAM for class '" + self.class_names[target_class] + "' (confidence = " +
+                     str(np.round(predicted_probs[item_key][batch_idx] * 100, 2)) + "%) - true class " +
+                     self.class_names[data_labels[batch_idx]])
+        else:
+            title = ("'" + item_name + "' (true class '" + self.class_names[data_labels[batch_idx]] + "'): Why '" +
+                     self.class_names[target_class] + "' (confidence = " +
+                     str(np.round(predicted_probs[item_key][batch_idx][0] * 100, 2)) + "%), rather than '" +
+                     self.class_names[contrastive_foil_class] + "' (confidence = " +
+                     str(np.round(predicted_probs[item_key][batch_idx][1] * 100, 2)) + "%)?")
 
-        title = ("'" + item_name + "': CAM for class '" + self.class_names[target_class] + "' (confidence = " +
-                 str(np.round(predicted_probs[item_key][batch_idx] * 100, 2)) + "%) - true class " +
-                 self.class_names[data_labels[batch_idx]])
         return title
 
     def __display_plot(self, results_dir_path: str, explainer_type: str, target_layer: str, target_class: int,
-                       item_name: str = None, is_channel: bool = False) -> None:
+                       contrastive_foil_class: int, item_name: str = None, is_channel: bool = False) -> None:
         """
         Show one CAM plot as a figure or as a ".png" file.
 
@@ -859,6 +915,9 @@ class CamBuilder:
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
             used to retrieve the layer from the class attributes.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
+        :param contrastive_foil_class: (mandatory) An integer representing the comparative class (foil) for the
+            explanation in the context of Contrastive Explanations. If None, the explanation would follow the classical
+            paradigm.
         :param item_name: (optional, default is False) A string representing the name of an input item.
         :param is_channel: (optional, default is False) A boolean flag indicating whether the figure represents graphs
             of multiple input channels, to discriminate it from other display modalities.
@@ -882,13 +941,18 @@ class CamBuilder:
                 if data_name not in os.listdir(results_dir_path):
                     os.mkdir(filepath)
             filename = (name_addon + explainer_type + "_" + re.sub(r"\W", "_", target_layer) + "_class" +
-                        str(target_class) + ".png")
+                        str(target_class))
+            if contrastive_foil_class is not None:
+                filename += "_foil" + str(contrastive_foil_class)
+            filename += ".png"
 
             # Communicate outcome
             descr_addon1 = "for item '" + item_name + "' " if item_name is not None else ""
-            self.__print_justify("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
-                                 self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type +
-                                 ") as '" + filename + "'...")
+            tmp_txt = ("Storing " + descr_addon + "output display " + descr_addon1 + "(class " +
+                       self.class_names[target_class] + ", layer " + target_layer + ", algorithm " + explainer_type)
+            if contrastive_foil_class is not None:
+                tmp_txt += ", foil class " + self.class_names[contrastive_foil_class]
+            self.__print_justify(tmp_txt + ") as '" + filename + "'...")
 
             plt.savefig(os.path.join(filepath, filename), format="png", bbox_inches="tight", pad_inches=0,
                         dpi=500)
@@ -986,7 +1050,8 @@ class CamBuilder:
 
     @staticmethod
     def __check_input_types(target_classes: int | List[int], explainer_types: str | List[str],
-                            target_layers: str | List[str]) -> Tuple[List[int], List[str], List[str]]:
+                            target_layers: str | List[str], contrastive_foil_classes: int | List[int]) \
+            -> Tuple[List[int], List[str], List[str], List[int]]:
         """
         Checks whether the setting specifics (target classes, explainer algorithms, and target layers) are provided
         as lists of values. If not, they are transformed into a list.
@@ -999,6 +1064,9 @@ class CamBuilder:
         :param target_layers: (mandatory) A string or a list of strings representing the target layers for the
             explanations. These strings should identify either PyTorch named modules, TensorFlow/Keras layers, or they
             should be class dictionary keys, used to retrieve each layer from the class attributes.
+        :param contrastive_foil_classes: (mandatory) An integer or list of integers representing the comparative classes
+            (foils) for the explanation in the context of Contrastive Explanations. If None, the explanation would
+            follow the classical paradigm.
 
         :return:
             - target_classes: A list of integers representing the target classes for the explanation.
@@ -1007,6 +1075,9 @@ class CamBuilder:
             - target_layers: A list of strings representing the target layers for the explanations. These strings should
             identify either PyTorch named modules, TensorFlow/Keras layers, or they should be class dictionary keys,
             used to retrieve each layer from the class attributes.
+            - contrastive_foil_classes: A list of intergers representing the comparative classes (foils) for the
+            explanation in the context of Contrastive Explanations. If None, the explanation would follow the classical
+            paradigm.
         """
 
         if not isinstance(target_classes, list):
@@ -1015,8 +1086,10 @@ class CamBuilder:
             explainer_types = [explainer_types]
         if not isinstance(target_layers, list):
             target_layers = [target_layers]
+        if not isinstance(contrastive_foil_classes, list):
+            contrastive_foil_classes = [contrastive_foil_classes]
 
-        return target_classes, explainer_types, target_layers
+        return target_classes, explainer_types, target_layers, contrastive_foil_classes
 
     @staticmethod
     def __set_grid(n_items: int, grid_instructions: Tuple[int, int]) -> Tuple[int, int]:

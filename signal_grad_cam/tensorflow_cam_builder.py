@@ -150,7 +150,8 @@ class TfCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
                                  target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+                                 extra_inputs_list: List[Any] = None, contrastive_foil_class: int = None,
+                                 eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -167,6 +168,9 @@ class TfCamBuilder(CamBuilder):
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
+            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
+            classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -230,8 +234,15 @@ class TfCamBuilder(CamBuilder):
                         target_scores = tf.concat([-outputs, outputs], axis=1)
                         target_probs = tf.concat([1 - p, p], axis=1)
 
-            target_scores = target_scores[:, target_class]
-            target_probs = target_probs[:, target_class]
+            if contrastive_foil_class is not None:
+                contrastive_foil = tf.constant([contrastive_foil_class] * target_scores.shape[0], dtype=tf.int32)
+                target_scores = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)(contrastive_foil,
+                                                                                                target_scores)
+                target_probs = tf.gather(target_probs, [target_class, contrastive_foil_class], axis=1)
+            else:
+                target_scores = target_scores[:, target_class]
+                target_probs = target_probs[:, target_class]
+
             self.gradients = tape.gradient(target_scores, self.activations)
 
         cam_list = []

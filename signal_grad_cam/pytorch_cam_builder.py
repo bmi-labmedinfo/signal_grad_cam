@@ -125,7 +125,8 @@ class TorchCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor], target_class: int,
                                  target_layer: nn.Module, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, eps: float = 1e-6) \
+                                 extra_inputs_list: List[Any] = None, contrastive_foil_class: int = None,
+                                 eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -142,6 +143,9 @@ class TorchCamBuilder(CamBuilder):
             activation function.
         :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
             model's forward method.
+        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
+            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
+            classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -215,12 +219,18 @@ class TorchCamBuilder(CamBuilder):
                     target_scores = torch.cat([-outputs, outputs], dim=1)
                     target_probs = torch.cat([1 - p, p], dim=1)
 
-        target_probs = target_probs[:, target_class].cpu().detach().numpy()
+        class_idx = target_class if contrastive_foil_class is None else [target_class, contrastive_foil_class]
+        target_probs = target_probs[:, class_idx].cpu().detach().numpy()
 
         cam_list = []
         for i in range(len(data_list)):
             self.model.zero_grad()
-            target_score = target_scores[i, target_class]
+            if contrastive_foil_class is None:
+                target_score = target_scores[i, target_class]
+            else:
+                contrastive_foil = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil_class]
+                                                                                       * target_scores.shape[0])))
+                target_score = nn.CrossEntropyLoss()(target_scores[i].unsqueeze(0), contrastive_foil)
             target_score.backward(retain_graph=True)
 
             if explainer_type == "HiResCAM":

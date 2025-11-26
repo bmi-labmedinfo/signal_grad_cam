@@ -89,7 +89,7 @@ def preprocess_fn(signal):
 class_labels = ["Class 1", "Class 2", "Class 3"]
 
 # Define the CAM builder
-cam_builder = TorchCamBuilder(model=model, transform_fc=preprocess_fc, class_names=class_labels, time_axs=1)
+cam_builder = TorchCamBuilder(model=model, transform_fn=preprocess_fn, class_names=class_labels, time_axs=1)
 ```
 
 <p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the <i>`get_cams`</i> method. You can specify multiple algorithm names, target layers, or target classes as needed.
@@ -111,7 +111,7 @@ target_classes = [0, 1]
 # Create CAMs
 cam_dict, predicted_probs_dict, score_ranges_dict = cam_builder.get_cam(data_list=data_list, data_labels=data_labels_list, 
 									target_classes=target_classes, explainer_types="Grad-CAM", 
-									target_layer="conv1d_layer_1", softmax_final=True,
+									target_layers="conv1d_layer_1", softmax_final=True,
                                                             		data_sampling_freq=25, dt=1, axes_names=("Time (s)", "Channels"))
 
 # Visualize single channel importance
@@ -119,7 +119,7 @@ selected_channels_indices = [0, 2, 10]
 cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
 					  cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
 					  target_layers="target_layer_name", desired_channels=selected_channels_indices, 
-					  grid_instructions=(1, len(selected_channels_indices), bar_ranges=score_ranges_dict, 
+					  grid_instructions=(1, len(selected_channels_indices), bar_ranges_dict=score_ranges_dict, 
 				          results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1, line_width=0.5, 
 					  axes_names=("Time (s)", "Amplitude (mV)"))
 
@@ -127,11 +127,11 @@ cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_
 cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
                                       cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
 				      target_layers="target_layer_name", fig_size=(20 * len(your_data_X), 20), 
-				      grid_instructions=(len(your_data_X), 1), bar_ranges=score_ranges_dict, data_names=item_names 
-				      results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
+				      grid_instructions=(len(your_data_X), 1), bar_ranges_dict=score_ranges_dict, data_names=item_names 
+				      results_dir_path="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
 ```
 
-You can also check the python scripts [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples).
+You can also explore the Python scripts available in the examples directory of the repository [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples), which provide complete, ready-to-run demonstrations for both PyTorch and TensorFlow/Keras models. These examples include open-source models for image and signal classification using 1D- and 2D-CNN architectures, and they illustrate how to apply the recently added feature for creating and displaying "contrastive explanations" in each scenario.
 
 See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) for a full list of proposed features (and known issues).
 
@@ -141,11 +141,25 @@ See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) 
 If you use the SignalGrad-CAM software for your projects, please cite it as:
 
 ```
-@software{Pe_SignalGrad_CAM_2025,
-  author = {Pe, Samuele and Buonocore, Tommaso Mario and Giovanna, Nicora and Enea, Parimbelli},
+@inproceedings{pe_sgradcam_2025_paper,
+  author = {Pe, Samuele and Buonocore, Tommaso Mario and Giovanna, Nicora and Enea, Parimbelli}},
+  title = {SignalGrad-CAM: Beyond Image Explanation},
+  booktitle = {Joint Proceedings of the xAI 2025 Late-breaking Work, Demos and Doctoral Consortium co-located with the 3rd World Conference on eXplainable Artificial Intelligence (xAI 2025), Istanbul, Turkey, July 9-11, 2025},
+  series = {CEUR Workshop Proceedings},
+  volume = {4017},
+  pages = {209--216},
+  url = {https://ceur-ws.org/Vol-4017/paper_27.pdf},
+  publisher = {CEUR-WS.org},
+  year = {2025}
+}
+```
+
+```   
+@software{pe_sgradcam_2025_repo,
+  author = {Pe, Samuele},
   title = {{SignalGrad-CAM}},
   url = {https://github.com/bmi-labmedinfo/signal_grad_cam},
-  version = {0.0.1},
+  version = {1.0.0},
   year = {2025}
 }
 ```

@@ -22,7 +22,7 @@ import tensorflow as tf
 
 from tensorflow.keras.models import load_model
 from data.models.ParallelModel import ParallelModel
-from data.models.RavdessDataLoad import ravdess_get_test_data, ravdess_get_test_label, ravdess_get_test_raw_data
+#from data.models.RavdessDataLoad import ravdess_get_test_data, ravdess_get_test_label, ravdess_get_test_raw_data
 
 from signal_grad_cam import TorchCamBuilder, TfCamBuilder
 
@@ -97,6 +97,35 @@ def pytorch_model_testing():
                                               bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
                                               axes_names=axes_names, line_width=0.5, marker_width=50)
 
+    # Contrastive explainability: Why "happy", rather than "angry"?
+    fact_class = 3
+    contrastive_foil_class = 5
+    cams, predicted_probs, bar_ranges = cam_builder.get_cam([data_preprocessed[1]], data_labels=[data_labels[1]],
+                                                            target_classes=fact_class,
+                                                            explainer_types=explainer_types,
+                                                            target_layers=target_layers_names, softmax_final=True,
+                                                            data_names=[data_names[1]], results_dir_path=results_dir,
+                                                            data_shape_list=[data_shape_list[1]],
+                                                            channel_names=channel_names, time_names=time_names,
+                                                            axes_names=axes_names,
+                                                            contrastive_foil_classes=contrastive_foil_class)
+    comparison_algorithm = "HiResCAM"
+    cam_builder.overlapped_output_display(data_list=[data_list[1]], data_labels=[data_labels[1]],
+                                          predicted_probs_dict=predicted_probs, cams_dict=cams,
+                                          explainer_types=comparison_algorithm, target_classes=fact_class,
+                                          target_layers=target_layers_names, data_names=[data_names[1]],
+                                          fig_size=(10, 7), grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
+                                          results_dir_path=results_dir, axes_names=axes_names,
+                                          contrastive_foil_classes=contrastive_foil_class)
+    cam_builder.single_channel_output_display(data_list=[data_list[1]], data_labels=[data_labels[1]],
+                                              predicted_probs_dict=predicted_probs, cams_dict=cams,
+                                              explainer_types=comparison_algorithm, target_classes=fact_class,
+                                              target_layers=target_layers_names, data_names=[data_names[1]],
+                                              fig_size=(12, 10), desired_channels=[0, 50, 125],
+                                              bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
+                                              axes_names=axes_names, line_width=0.5, marker_width=50,
+                                              contrastive_foil_classes=contrastive_foil_class)
+
 
 def tensorflow_model_testing():
     # Define and create results directory
@@ -151,8 +180,28 @@ def tensorflow_model_testing():
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
                                               channel_names=ecg_leads, line_width=0.3, marker_width=15)
 
+    # Contrastive explainability: Why "myocardial infarction", rather than "normal"?
+    fact_classes = [1, 2, 3]
+    contrastive_foil_classes = [1, 2, 3]
+    cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
+                                                            target_classes=fact_classes,
+                                                            explainer_types=explainer_types,
+                                                            target_layers=target_layers_names, softmax_final=False,
+                                                            data_names=data_names, results_dir_path=results_dir,
+                                                            data_sampling_freq=fc, dt=1, channel_names=ecg_leads,
+                                                            contrastive_foil_classes=contrastive_foil_classes)
+    comparison_algorithms = ["Grad-CAM", "HiResCAM"]
+    cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels,
+                                              predicted_probs_dict=predicted_probs, cams_dict=cams,
+                                              explainer_types=comparison_algorithms, target_classes=fact_classes,
+                                              target_layers=target_layers_names, data_names=data_names,
+                                              fig_size=(15, 18), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
+                                              results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
+                                              channel_names=ecg_leads, line_width=0.3, marker_width=15,
+                                              contrastive_foil_classes=contrastive_foil_classes)
+
 
 # Main
-pytorch_model_testing()
+#pytorch_model_testing()
 print("\n===========================================================================================================\n")
 tensorflow_model_testing()
