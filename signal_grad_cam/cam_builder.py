@@ -307,7 +307,7 @@ class CamBuilder:
                             aspect = "auto" if cam.shape[0] / cam.shape[1] < 0.1 else None
 
                             norm = self.__get_norm(cam)
-                            map = plt.imshow(cam, cmap="jet", aspect=aspect, norm=norm)
+                            map = plt.imshow(cam, cmap="inferno", aspect=aspect, norm=norm)
                             self.__set_colorbar(bar_ranges_dict[item_key], i)
                             map.set_alpha(0.3)
 
@@ -335,7 +335,7 @@ class CamBuilder:
                                       fig_size: Tuple[int, int] = None, line_width: float = 0.1,
                                       marker_width: float = 30) -> None:
         """
-        Displays input signal channels, coloring each with "jet" colormat according to the corresponding CAMs. This
+        Displays input signal channels, coloring each with "inferno" colormat according to the corresponding CAMs. This
         visualization is useful for interpreting signal explanations with a limited number of channels. If many channels
         are present, it is recommended to select only a subset.
 
@@ -383,7 +383,7 @@ class CamBuilder:
         :param line_width: (optional, default is 0.1) A numerical value representing the width in typographic points of
             the black interpolation lines in the plots.
         :param marker_width: (optional, default is 30) A numerical value representing the size in typographic points**2
-            of the jet-colored markers in the plots.
+            of the inferno-colored markers in the plots.
         """
 
         # Check input types
@@ -432,8 +432,8 @@ class CamBuilder:
                                     cam_j = cam[0, :]
                                 item_j = item[:, channel] if item.shape[0] == len(cam_j) else item[channel, :]
                                 plt.plot(item_j, color="black", linewidth=line_width)
-                                plt.scatter(np.arange(len(item_j)), item_j, c=cam_j, cmap="jet", marker=".",
-                                            s=marker_width, norm=None, vmin=minimum, vmax=maximum)
+                                plt.scatter(np.arange(len(item_j)), item_j, c=cam_j, cmap="inferno", marker=".",
+                                            s=marker_width, norm=None, vmin=minimum, vmax=maximum + 1e-10)
                                 self.__set_colorbar(bar_ranges_dict[item_key], i)
 
                                 if channel_names is None:
@@ -739,7 +739,7 @@ class CamBuilder:
                     aspect = 1
                 if not self.time_axs:
                     map = np.transpose(map)
-            plt.matshow(map, cmap=plt.get_cmap("jet"), norm=norm, aspect=aspect)
+            plt.matshow(map, cmap=plt.get_cmap("inferno"), norm=norm, aspect=aspect)
 
             # Add color bar
             self.__set_colorbar(bar_ranges, i)
@@ -1039,13 +1039,13 @@ class CamBuilder:
             list.
         """
 
-        bar_range = [bar_ranges[0][batch_idx], bar_ranges[1][batch_idx]]
-        cbar = plt.colorbar()
-        if bar_range is not None:
+        if bar_ranges is not None:
+            bar_range = [bar_ranges[0][batch_idx], bar_ranges[1][batch_idx]]
+            cbar = plt.colorbar()
             minimum = float(bar_range[0])
             maximum = float(bar_range[1])
             min_str = str(minimum) if minimum == 0 else "{:.2e}".format(minimum)
-            max_str = "" if maximum == minimum else "{:.2e}".format(maximum)
+            max_str = str(maximum) if maximum == 0 else "{:.2e}".format(maximum)
             cbar.ax.get_yaxis().set_ticks([cbar.vmin, cbar.vmax], labels=[min_str, max_str])
 
     @staticmethod

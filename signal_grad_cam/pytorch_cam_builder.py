@@ -228,8 +228,7 @@ class TorchCamBuilder(CamBuilder):
             if contrastive_foil_class is None:
                 target_score = target_scores[i, target_class]
             else:
-                contrastive_foil = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil_class]
-                                                                                       * target_scores.shape[0])))
+                contrastive_foil = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil_class])))
                 target_score = nn.CrossEntropyLoss()(target_scores[i].unsqueeze(0), contrastive_foil)
             target_score.backward(retain_graph=True)
 

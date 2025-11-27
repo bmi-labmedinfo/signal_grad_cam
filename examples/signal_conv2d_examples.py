@@ -163,7 +163,7 @@ def tensorflow_model_testing():
     cam_builder = TfCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=0,
                                input_transposed=True)
     target_layers_names = "conv2d_34"
-    cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
+    '''cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
                                                             target_classes=target_classes,
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
@@ -178,7 +178,7 @@ def tensorflow_model_testing():
                                               target_layers=target_layers_names, data_names=data_names,
                                               fig_size=(15, 18), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
-                                              channel_names=ecg_leads, line_width=0.3, marker_width=15)
+                                              channel_names=ecg_leads, line_width=0.3, marker_width=15)'''
 
     # Contrastive explainability: Why "myocardial infarction", rather than "normal"?
     fact_classes = [1, 2, 3]
@@ -195,9 +195,9 @@ def tensorflow_model_testing():
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
                                               explainer_types=comparison_algorithms, target_classes=fact_classes,
                                               target_layers=target_layers_names, data_names=data_names,
-                                              fig_size=(15, 18), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
+                                              fig_size=(30, 10), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
-                                              channel_names=ecg_leads, line_width=0.3, marker_width=15,
+                                              channel_names=ecg_leads, line_width=0.5, marker_width=10,
                                               contrastive_foil_classes=contrastive_foil_classes)
 
 
