@@ -1,7 +1,7 @@
 '''
 
 The PyTorch model used in this script was obtained from GitHub:
-    github.com/Data-Science-kosta/Speech-Emotion-Classification-with-PyTorch
+github.com/Data-Science-kosta/Speech-Emotion-Classification-with-PyTorch
 and the data come from Kaggle: kaggle.com/datasets/uwrfkaggler/ravdess-emotional-speech-audio
 
 The TensorFlow/Keras model used in this script was obtained from GitHub: github.com/HaneenElyamani/ECG-classification
@@ -22,7 +22,7 @@ import tensorflow as tf
 
 from tensorflow.keras.models import load_model
 from data.models.ParallelModel import ParallelModel
-#from data.models.RavdessDataLoad import ravdess_get_test_data, ravdess_get_test_label, ravdess_get_test_raw_data
+from data.models.RavdessDataLoad import ravdess_get_test_data, ravdess_get_test_label, ravdess_get_test_raw_data
 
 from signal_grad_cam import TorchCamBuilder, TfCamBuilder
 
@@ -163,7 +163,7 @@ def tensorflow_model_testing():
     cam_builder = TfCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=0,
                                input_transposed=True)
     target_layers_names = "conv2d_34"
-    '''cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
+    cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
                                                             target_classes=target_classes,
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
@@ -178,7 +178,7 @@ def tensorflow_model_testing():
                                               target_layers=target_layers_names, data_names=data_names,
                                               fig_size=(15, 18), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
-                                              channel_names=ecg_leads, line_width=0.3, marker_width=15)'''
+                                              channel_names=ecg_leads, line_width=0.3, marker_width=15)
 
     # Contrastive explainability: Why "myocardial infarction", rather than "normal"?
     fact_classes = [1, 2, 3]
@@ -202,6 +202,6 @@ def tensorflow_model_testing():
 
 
 # Main
-#pytorch_model_testing()
+pytorch_model_testing()
 print("\n===========================================================================================================\n")
 tensorflow_model_testing()

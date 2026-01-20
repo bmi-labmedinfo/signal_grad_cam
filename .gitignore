@@ -8,6 +8,7 @@ signal_grad_cam/__pycache__/
 examples/data/datasets/signal_data_1D/ecg.pkl
 examples/data/datasets/signal_data_1D/people_car_keys.wav
 examples/data/datasets/signal_data_1D/sing_fingersnap.wav
+examples/data/datasets/video_data/
 examples/data/models/ecg_model_1D_torch.pth
 examples/outputs/
 examples/_pycache__/

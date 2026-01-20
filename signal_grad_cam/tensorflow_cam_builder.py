@@ -68,13 +68,19 @@ class TfCamBuilder(CamBuilder):
 
         # Check for input/output attributes
         if not hasattr(model, "inputs"):
-            print("Your TensorFlow/Keras model has no attribute 'inputs'. Ensure it is built or loaded correctly, or\n"
-                  "provide a different one. If the model contains a 'Sequential' attribute, that Sequential object may\n"
-                  "be a suitable candidate for an input model.")
+            self._CamBuilder__print_justify("Your TensorFlow/Keras model has no attribute 'inputs'. Ensure it is built "
+                                            "or loaded correctly, or provide a different one. If the model contains a "
+                                            "'Sequential' attribute, that Sequential object may be a suitable candidate"
+                                            " for an input model.")
         elif not hasattr(model, "output"):
-            print("Your TensorFlow/Keras model has no attribute 'output'. Ensure it is built or loaded correctly, or\n"
-                  "provide a different one. If the model contains a 'Sequential' attribute, that Sequential object may\n"
-                  "be a suitable candidate for an input model.")
+            if hasattr(model, "outputs"):
+                self.model.output = model.outputs[self.model_output_index] if self.model_output_index is not None \
+                    else model.outputs[0]
+            else:
+                self._CamBuilder__print_justify("Your TensorFlow/Keras model has no attribute 'output' or 'outputs'. "
+                                                "Ensure it is built or loaded correctly, or provide a different one. If"
+                                                " the model contains a 'Sequential' attribute, that Sequential object "
+                                                "may be a suitable candidate for an input model.")
 
     def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
             -> Dict[str, tf.keras.layers.Layer | Any]:
@@ -145,7 +151,8 @@ class TfCamBuilder(CamBuilder):
         """
 
         if (isinstance(layer, keras.layers.Conv1D) or isinstance(layer, keras.layers.Conv2D) or
-                isinstance(layer, keras.layers.Softmax) or isinstance(layer, keras.Sequential)):
+            isinstance(layer, keras.layers.Conv3D) or isinstance(layer, keras.layers.Softmax) or
+                isinstance(layer, keras.Sequential)):
             super()._show_layer(name, layer, potential=potential)
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
@@ -157,7 +164,8 @@ class TfCamBuilder(CamBuilder):
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal or an image.
+        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
+            a video/volume.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either TensorFlow/Keras layers or it should be a class dictionary key, used to retrieve the layer
@@ -247,39 +255,45 @@ class TfCamBuilder(CamBuilder):
 
         cam_list = []
         is_2d_layer = self._is_2d_layer(target_layer)
+        is_3d_layer = is_2d_layer is None
         for i in range(len(data_list)):
             if explainer_type == "HiResCAM":
-                cam = self._get_hirecam_map(is_2d_layer=is_2d_layer, batch_idx=i)
+                cam = self._get_hirecam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
             else:
-                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, batch_idx=i)
+                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
             cam_list.append(cam.numpy())
 
         return cam_list, target_probs
 
-    def _get_gradcam_map(self, is_2d_layer: bool, batch_idx: int) -> tf.Tensor:
+    def _get_gradcam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> tf.Tensor:
         """
         Compute the CAM using the vanilla Gradient-weighted Class Activation Mapping (Grad-CAM) algorithm.
 
         :param is_2d_layer: (mandatory) A boolean indicating whether the target layers 2D-convolutional layer.
+        :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
 
-        :return: cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
-            built with the Grad-CAM algorithm.
+        :return:
+            - cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
+                built with the Grad-CAM algorithm.
         """
 
-        if is_2d_layer:
+        if is_2d_layer is not None and is_2d_layer:
             dim_mean = (0, 1)
+        elif is_3d_layer:
+            dim_mean = (0, 1, 2)
         else:
             dim_mean = 0
         weights = tf.reduce_mean(self.gradients[batch_idx], axis=dim_mean)
         activations = self.activations[batch_idx].numpy()
 
         for i in range(activations.shape[-1]):
-            if is_2d_layer:
+            if is_2d_layer is not None and is_2d_layer:
                 activations[:, :, i] *= weights[i]
+            elif is_3d_layer:
+                activations[:, :, :, i] *= weights[i]
             else:
-                activations[:, i] *= weights[i]
                 activations[:, i] *= weights[i]
 
         cam = tf.reduce_sum(tf.convert_to_tensor(activations), axis=-1)
@@ -287,24 +301,28 @@ class TfCamBuilder(CamBuilder):
             cam = tf.nn.relu(cam)
         return cam
 
-    def _get_hirecam_map(self, is_2d_layer: bool, batch_idx: int) -> tf.Tensor:
+    def _get_hirecam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> tf.Tensor:
         """
         Compute the CAM using the High-Resolution Class Activation Mapping (HiResCAM) algorithm.
 
         :param is_2d_layer: (mandatory) A boolean indicating whether the target layers 2D-convolutional layer.
+        :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
 
-        :return: cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
-            built with the HiResCAM algorithm.
+        :return:
+            - cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
+                built with the HiResCAM algorithm.
         """
 
         activations = self.activations[batch_idx].numpy()
         gradients = self.gradients[batch_idx].numpy()
 
         for i in range(activations.shape[-1]):
-            if is_2d_layer:
+            if is_2d_layer is not None and is_2d_layer:
                 activations[:, :, i] *= gradients[:, :, i]
+            elif is_3d_layer:
+                activations[:, :, :, i] *= gradients[:, :, :, i]
             else:
                 activations[:, i] *= gradients[:, i]
 
@@ -314,20 +332,23 @@ class TfCamBuilder(CamBuilder):
         return cam
 
     @staticmethod
-    def _is_2d_layer(target_layer: tf.keras.layers.Layer) -> bool:
+    def _is_2d_layer(target_layer: tf.keras.layers.Layer) -> bool | None:
         """
         Evaluates whether the target layer is a 2D-convolutional layer.
 
         :param target_layer: (mandatory) A TensorFlow/Keras layer.
 
         :return:
-            - is_2d_layer: A boolean indicating whether the target layers 2D-convolutional layer.
+            - is_2d_layer: A boolean indicating whether the target layers 2D-convolutional layer. If the target layer is
+                a 3D-convolutional layer, the function returns a None.
         """
 
         if isinstance(target_layer, keras.layers.Conv1D):
             is_2d_layer = False
         elif isinstance(target_layer, keras.layers.Conv2D):
             is_2d_layer = True
+        elif isinstance(target_layer, keras.layers.Conv3D):
+            is_2d_layer = None
         else:
             is_2d_layer = CamBuilder._is_2d_layer(target_layer)
         return is_2d_layer

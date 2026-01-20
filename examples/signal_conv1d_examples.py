@@ -14,22 +14,22 @@ and the data come from the PhysioNet/CinC Challenge 2017: physionet.org/content/
 Due to the large file size, the PyTorch model and data are not included in this GitHub repository. However, they can be
 retrieved directly from the source.
     - The model file, "model.pth", is available at github.com/hsd1503/resnet1d/tree/master/trained_model
-      After downloading, rename the file and place it in the following directory within this project:
-      ./data/models/ecg_model_1D_torch.pth
+      After downloading, rename the file ("ecg_model_1D_torch.pth") and place it in the following directory within this
+      project: ./data/models/
     - The data file, "challenge2017.pkl", is available at drive.google.com/drive/folders/1AuPxvGoyUbKcVaFmeyt3xsqj6ucWZezf
-      After downloading, rename the file and place it in the following directory within this project:
-      ./data/datasets/signal_data_1D/ecg.pkl
+      After downloading, rename the file ("ecg.pkl") and place it in the following directory within this project:
+      ./data/datasets/signal_data_1D/
 
 The TensorFlow/Keras model used in this script was obtained from GitHub: github.com/ZFTurbo/classification_models_1D
 and the data come from AudioSet: research.google.com/audioset/
 Due to the large file size, the data files for the Tensorflow/Keras model evaluation are not included in this GitHub
 repository. However, they can be retrieved directly from the source.
     - The first audio file, "-0RWZT-miFs.wav", is available kaggle.com/datasets/zfturbo/audioset-valid
-      After downloading, rename the file and place it in the following directory within this project:
-      ./data/datasets/signal_data_1D/people_car_keys.wav
+      After downloading, rename the file ("people_car_keys.wav") and place it in the following directory within this
+      project: ./data/datasets/signal_data_1D/
     - The second audio file, "-0vPFx-wRRI.wav", is available at kaggle.com/datasets/zfturbo/audioset-valid
-      After downloading, rename the file and place it in the following directory within this project:
-      ./data/datasets/signal_data_1D/sing_fingersnap.wav
+      After downloading, rename the file ("sing_fingersnap.wav") and place it in the following directory within this
+      project: ./data/datasets/signal_data_1D/
 '''
 
 # Import dependencies

@@ -119,7 +119,7 @@ class TorchCamBuilder(CamBuilder):
             a layer (i.e., a generic instance attribute, not guaranteed to be a layer).
         """
 
-        if (isinstance(layer, nn.Conv1d) or isinstance(layer, nn.Conv2d) or
+        if (isinstance(layer, nn.Conv1d) or isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Conv3d) or
                 isinstance(layer, nn.Softmax) or isinstance(layer, nn.Sigmoid)):
             super()._show_layer(name, layer, potential=potential)
 
@@ -132,7 +132,8 @@ class TorchCamBuilder(CamBuilder):
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal or an image.
+        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
+            a video/volume.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either PyTorch named modules or it should be a class dictionary key, used to retrieve the layer
@@ -176,6 +177,7 @@ class TorchCamBuilder(CamBuilder):
             data_list = padded_data_list
 
         is_2d_layer = self._is_2d_layer(target_layer)
+        is_3d_layer = is_2d_layer is None
         if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer
                                             and len(data_list[0].shape) == 1):
             data_list = [x.unsqueeze(0) for x in data_list]
@@ -233,35 +235,41 @@ class TorchCamBuilder(CamBuilder):
             target_score.backward(retain_graph=True)
 
             if explainer_type == "HiResCAM":
-                cam = self._get_hirescam_map(is_2d_layer=is_2d_layer, batch_idx=i)
+                cam = self._get_hirescam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
             else:
-                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, batch_idx=i)
+                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
             cam_list.append(cam.cpu().detach().numpy())
 
         return cam_list, target_probs
 
-    def _get_gradcam_map(self, is_2d_layer: bool, batch_idx: int) -> torch.Tensor:
+    def _get_gradcam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> torch.Tensor:
         """
         Compute the CAM using the vanilla Gradient-weighted Class Activation Mapping (Grad-CAM) algorithm.
 
         :param is_2d_layer: (mandatory) A boolean indicating whether the target layers 2D-convolutional layer.
+        :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
 
-        :return: cam: A PyTorch tensor representing the Class Activation Map (CAM) for the batch_idx-th input, built
-            with the Grad-CAM algorithm.
+        :return:
+            - cam: A PyTorch tensor representing the Class Activation Map (CAM) for the batch_idx-th input, built with
+                the Grad-CAM algorithm.
         """
 
-        if is_2d_layer:
+        if is_2d_layer is not None and is_2d_layer:
             dim_mean = (1, 2)
+        elif is_3d_layer:
+            dim_mean = (1, 2, 3)
         else:
             dim_mean = 1
         weights = torch.mean(self.gradients[batch_idx], dim=dim_mean)
         activations = self.activations[batch_idx].clone()
 
         for i in range(self.activations.shape[1]):
-            if is_2d_layer:
+            if is_2d_layer is not None and is_2d_layer:
                 activations[i, :, :] *= weights[i]
+            elif is_3d_layer:
+                activations[i, :, :, :] *= weights[i]
             else:
                 activations[i, :] *= weights[i]
 
@@ -270,24 +278,28 @@ class TorchCamBuilder(CamBuilder):
             cam = torch.relu(cam)
         return cam
 
-    def _get_hirescam_map(self, is_2d_layer: bool, batch_idx: int) -> torch.Tensor:
+    def _get_hirescam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> torch.Tensor:
         """
         Compute the CAM using the High-Resolution Class Activation Mapping (HiResCAM) algorithm.
 
         :param is_2d_layer: (mandatory) A boolean indicating whether the target layers 2D-convolutional layer.
+        :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
 
-        :return: cam: A PyTorch tensor representing the Class Activation Map (CAM) for the batch_idx-th input, built
-            with the HiResCAM algorithm.
+        :return:
+            - cam: A PyTorch tensor representing the Class Activation Map (CAM) for the batch_idx-th input, built with
+                the HiResCAM algorithm.
         """
 
         activations = self.activations[batch_idx].clone()
         gradients = self.gradients[batch_idx]
 
         for i in range(self.activations.shape[1]):
-            if is_2d_layer:
+            if is_2d_layer is not None and is_2d_layer:
                 activations[i, :, :] *= gradients[i, :, :]
+            elif is_3d_layer:
+                activations[i, :, :, :] *= gradients[i, :, :, :]
             else:
                 activations[i, :] *= gradients[i, :]
 
@@ -331,20 +343,23 @@ class TorchCamBuilder(CamBuilder):
         self.gradients = gradients
 
     @staticmethod
-    def _is_2d_layer(target_layer: nn.Module) -> bool:
+    def _is_2d_layer(target_layer: nn.Module) -> bool | None:
         """
-        Evaluates whether the target layer is a 2D-convolutional layer.
+        Evaluates whether the target layer is at least a 2D-convolutional layer.
 
         :param target_layer: (mandatory) A PyTorch module.
 
         :return:
-            - is_2d_layer: A boolean indicating whether the target layers 2D-convolutional layer.
+            - is_2d_layer: A boolean indicating whether the target layers 2D-convolutional layer. If the target layer is
+                a 3D-convolutional layer, the function returns a None.
         """
 
         if isinstance(target_layer, nn.Conv1d):
             is_2d_layer = False
         elif isinstance(target_layer, nn.Conv2d):
             is_2d_layer = True
+        elif isinstance(target_layer, nn.Conv3d):
+            is_2d_layer = None
         else:
             is_2d_layer = CamBuilder._is_2d_layer(target_layer)
         return is_2d_layer

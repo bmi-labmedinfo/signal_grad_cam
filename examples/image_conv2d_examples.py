@@ -32,7 +32,7 @@ response = requests.get(url)
 imagenet_classes = response.json()
 imagenet_classes = [val[1] for val in imagenet_classes.values()]
 
-# Set results directory
+# Set data directory
 working_dir = "./"
 data_dir = working_dir + "data/datasets/image_data/"
 
@@ -100,7 +100,7 @@ def pytorch_model_testing():
     comparison_algorithm = "Grad-CAM"
     cam_builder.overlapped_output_display(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
-                                          explainer_types=comparison_algorithm, target_classes=[207],
+                                          explainer_types=comparison_algorithm, target_classes=[fact_class],
                                           target_layers=target_layers_names, data_names=[data_names[-1]],
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
                                           results_dir_path=results_dir, contrastive_foil_classes=contrastive_foil_class)
@@ -152,10 +152,10 @@ def tensorflow_model_testing():
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=[data_names[-1]], results_dir_path=results_dir,
                                                             contrastive_foil_classes=contrastive_foil_class)
-    comparison_algorithm = "Grad-CAM"
+
     cam_builder.overlapped_output_display(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
-                                          explainer_types=comparison_algorithm, target_classes=[207],
+                                          explainer_types=comparison_algorithm, target_classes=[fact_class],
                                           target_layers=target_layers_names, data_names=[data_names[-1]],
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
                                           results_dir_path=results_dir, contrastive_foil_classes=contrastive_foil_class)

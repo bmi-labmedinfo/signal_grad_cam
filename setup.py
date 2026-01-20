@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="signal_grad_cam",
-    version="1.0.1",
+    version="2.0.1",
     description="SignalGrad-CAM aims at generalising Grad-CAM to one-dimensional applications, while enhancing usability"
                 " and efficiency.",
     keywords="XAI, class activation maps, CNN, time series",
@@ -28,7 +28,8 @@ setup(
         "opencv-python",
         "torch",
         "keras",
-        "tensorflow"
+        "tensorflow",
+        "imageio"
     ],
     include_package_data=True,
     zip_safe=False
