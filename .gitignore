@@ -12,7 +12,16 @@ examples/data/datasets/video_data/
 examples/data/models/ecg_model_1D_torch.pth
 examples/outputs/
 examples/_pycache__/
+examples/__pycache__/net1d.cpython-311.pyc
 examples/classification_models_1D/_pycache__/
+examples/classification_models_1D/__pycache__/__init__.cpython-311.pyc
+examples/classification_models_1D/__pycache__/__version__.cpython-311.pyc
+examples/classification_models_1D/__pycache__/models_factory.cpython-311.pyc
+examples/classification_models_1D/__pycache__/tfkeras.cpython-311.pyc
+examples/classification_models_1D/__pycache__/weights.cpython-311.pyc
 examples/classification_models_1D/models/_pycache__/
+examples/classification_models_1D/models/__pycache__/__init__.cpython-311.pyc
+examples/classification_models_1D/models/__pycache__/_common_blocks.cpython-311.pyc
+examples/classification_models_1D/models/__pycache__/resnet.cpython-311.pyc
 examples/data/_pycache__/
 examples/models/_pycache__/

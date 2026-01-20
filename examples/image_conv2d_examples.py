@@ -18,7 +18,8 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import cv2
 import requests
-import keras.api.applications.resnet50 as tf_resnet
+#import keras.api.applications.resnet50 as tf_resnet
+from tensorflow.keras.applications import resnet50 as tf_resnet
 
 from torchvision import models, transforms
 from torchvision.models import ResNet50_Weights

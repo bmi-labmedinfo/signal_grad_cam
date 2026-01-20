@@ -164,15 +164,14 @@ def tensorflow_model_testing():
     # Slightly fine-tune the model on the OrganMNIST3D training set for demonstration purposes
     tf.random.set_seed(0)
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
-                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), metrics=["accuracy"],
-                  time_axs=0)
+                  loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False), metrics=["accuracy"])
     X_train = train_ds.imgs
     y_train = train_ds.labels
     _ = model.fit(transform_fn(X_train), y_train, epochs=10, batch_size=32)
 
     # Draw CAMs
     cam_builder = TfCamBuilder(model, transform_fn=transform_fn, class_names=class_names,
-                               extend_search=True)
+                               extend_search=True, time_axs=0)
     target_classes = [3, 4]
     explainer_types = ["Grad-CAM", "HiResCAM"]
     target_layers_names = "stage2_unit2_conv2"

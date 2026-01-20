@@ -725,7 +725,7 @@ class CamBuilder:
                 if self.input_transposed:
                     dim_reshape = dim_reshape[::-1]
             elif is_3d_layer:
-                if len(data_shape_list[i]) > 4:
+                if len(data_shape_list[i]) >= 4:
                     w_idx = 2
                     h_idx = 3
                 else:
