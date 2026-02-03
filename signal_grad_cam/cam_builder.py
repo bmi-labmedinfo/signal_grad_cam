@@ -1362,7 +1362,12 @@ class CamBuilder:
                 if len(video_slice.shape) == 2:
                     video_slice = video_slice[np.newaxis, :, :]
                     video_slice = np.transpose(video_slice, (1, 2, 0))
-                output_slice = (0.6 * video_slice + 0.4 * cam_slice).astype(np.uint8)
+
+                try:
+                    output_slice = (0.6 * video_slice + 0.4 * cam_slice).astype(np.uint8)
+                except ValueError:
+                    video_slice = np.transpose(video_slice, (1, 2, 0))
+                    output_slice = (0.6 * video_slice + 0.4 * cam_slice).astype(np.uint8)
             ax.imshow(output_slice)
             ax.set_title(title_str)
 
