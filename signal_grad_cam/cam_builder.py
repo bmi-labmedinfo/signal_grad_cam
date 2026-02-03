@@ -1352,7 +1352,7 @@ class CamBuilder:
         time_axs = 0 if self.time_axs is None else self.time_axs
         for idx in range(cam.shape[time_axs]):
             video_slice = np.take(video, idx, axis=time_axs) if video is not None else None
-            cam_slice = np.take(cam, idx, axis=time_axs)
+            cam_slice = cam[0]
             cam_slice = (plt.get_cmap("inferno")(cam_slice / 255)[:, :, :3] * 255).astype(np.uint8)
             fig, ax = plt.subplots(figsize=(10, 4), dpi=300)
             ax.axis("off")
