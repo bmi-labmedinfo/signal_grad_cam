@@ -136,7 +136,7 @@ See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) 
 ## <i>NEW!</i> Updates in SignalGrad-CAM
 <p align="justify">Compared to previous versions, SignalGrad-CAM now offers the following enhancements:</p>
 
-* <p align="justify"><i>Support for regression tasks:</i> SGrad-CAM can now handle regression-based models. Previously, substantial adjustments were required for these tasks, similar to those still needed for segmentation or generative models.</p>
+* <p align="justify"><i>Support for regression tasks:</i> SGrad-CAM can now handle regression-based models. Previously, substantial adjustments were required for these tasks, similar to those still needed for segmentation or generative models, now it is only required to set as True the parameter <i>`is_regression_network`</i> in the constructor function.</p>
 * <p align="justify"><i>Contrastive explanations:</i> Users can generate and visualize contrastive explanations by specifying one or more foil classes via the parameter <i>`contrastive_foil_classes`</i>.</p>
 * <p align="justify"><i>3D-CNN support for videos and volumetric data:</i> After expliciting the time axis in the constructor with the parameter <i>`time_axs`</i>, the same functions used for 1D and 2D data now work seamlessly for 3D-CNNs. Outputs include GIF files for quick visualization of 3D activation maps. For a more detailed analysis, users can also request separate PNG images for each volume slice (across the indicated time axis) or video frame using the parameter <i>`show_single_video_frames`</i>.</p>
 

@@ -108,7 +108,7 @@ class CamBuilder:
                              "overconfident predictions can cause the Sigmoid to saturate, leading to empty or null "
                              "maps. To prevent this, modify your network to output logits directly.\n"
                              "Make sure the provided model is set to inference mode ('eval') if using PyTorch. For "
-                             "TensorFlow/Keras models, ensure the model is built—i.e., it must have defined 'inputs' "
+                             "TensorFlow/Keras models, ensure the model is built — i.e., it must have defined 'inputs' "
                              "and 'output' attributes.\n"
                              "Network layers found (name: type):")
         self._get_layers_pool(show=True, extend_search=extend_search)
@@ -732,9 +732,9 @@ class CamBuilder:
                     w_idx = 1
                     h_idx = 2
                 if not self.input_transposed:
-                    dim_reshape = (data_shape_list[i][0], data_shape_list[i][w_idx], data_shape_list[i][h_idx])
+                    dim_reshape = (data_shape_list[i][self.time_axs], data_shape_list[i][w_idx], data_shape_list[i][h_idx])
                 else:
-                    dim_reshape = (data_shape_list[i][0], data_shape_list[i][h_idx], data_shape_list[i][w_idx])
+                    dim_reshape = (data_shape_list[i][self.time_axs], data_shape_list[i][h_idx], data_shape_list[i][w_idx])
             else:
                 dim_reshape = (1, data_shape_list[i][self.time_axs])
                 if self.time_axs:
@@ -1318,7 +1318,7 @@ class CamBuilder:
         return norm
 
     @staticmethod
-    def __print_justify(text: str, n_characters: int = 170) -> None:
+    def __print_justify(text: str, n_characters: int = 100) -> None:
         """
         Prints a message in a fully justified format within a specified line width.
 
@@ -1345,8 +1345,7 @@ class CamBuilder:
 
         :return:
             - frames: A list of np.ndarrays representing frames to be saved as a GIF animation. This parameter should be
-            provided only for 3D (video/volume) explanations and it is set to None for 1D or 2D
-                maps.
+                provided only for 3D (video/volume) explanations and it is set to None for 1D or 2D maps.
         """
         frames = []
         norm = plt.Normalize(vmin=cam.min(), vmax=cam.max())
