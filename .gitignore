@@ -10,6 +10,8 @@ examples/data/datasets/signal_data_1D/people_car_keys.wav
 examples/data/datasets/signal_data_1D/sing_fingersnap.wav
 examples/data/datasets/video_data/
 examples/data/models/ecg_model_1D_torch.pth
+examples/data/models/__pycache__/ParallelModel.cpython-311.pyc
+examples/data/models/__pycache__/RavdessDataLoad.cpython-311.pyc
 examples/outputs/
 examples/_pycache__/
 examples/__pycache__/net1d.cpython-311.pyc

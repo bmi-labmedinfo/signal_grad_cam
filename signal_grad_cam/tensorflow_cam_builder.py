@@ -157,7 +157,7 @@ class TfCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
                                  target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, contrastive_foil_class: int = None,
+                                 extra_inputs_list: List[Any] = None, contrastive_foil: int | float = None,
                                  eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
@@ -174,11 +174,12 @@ class TfCamBuilder(CamBuilder):
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
+        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the
             model's forward method.
-        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
-            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
-            classical paradigm.
+        :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
+            tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
+            contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -210,9 +211,10 @@ class TfCamBuilder(CamBuilder):
 
         grad_model = keras.models.Model(self.model.inputs, [target_layer.output, self.model.output])
         extra_inputs_list = extra_inputs_list or []
-        with (tf.GradientTape() as tape):
+        with tf.GradientTape() as tape:
             self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
 
+            flag = False
             if softmax_final:
                 target_probs = outputs
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
@@ -231,6 +233,11 @@ class TfCamBuilder(CamBuilder):
                         target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
             else:
                 target_scores = outputs
+                try:
+                    _ = outputs.shape
+                except AttributeError:
+                    outputs = outputs[0]
+                    flag = True
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                     target_probs = tf.nn.softmax(target_scores, axis=1)
                 else:
@@ -242,11 +249,18 @@ class TfCamBuilder(CamBuilder):
                         target_scores = tf.concat([-outputs, outputs], axis=1)
                         target_probs = tf.concat([1 - p, p], axis=1)
 
-            if contrastive_foil_class is not None:
-                contrastive_foil = tf.constant([contrastive_foil_class] * target_scores.shape[0], dtype=tf.int32)
-                target_scores = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)(contrastive_foil,
-                                                                                                target_scores)
-                target_probs = tf.gather(target_probs, [target_class, contrastive_foil_class], axis=1)
+            if flag:
+                target_scores = target_scores[0]
+                target_probs = target_probs[0]
+            if contrastive_foil is not None:
+                contrastive_foil_tf = tf.constant([contrastive_foil] * target_scores.shape[0], dtype=target_scores.dtype)
+
+                if not self.is_regression_network:
+                    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+                else:
+                    loss = tf.keras.losses.MeanSquaredError()
+                target_scores = loss(contrastive_foil_tf, target_scores)
+                target_probs = tf.gather(target_probs, [target_class, contrastive_foil], axis=1)
             else:
                 target_scores = target_scores[:, target_class]
                 target_probs = target_probs[:, target_class]

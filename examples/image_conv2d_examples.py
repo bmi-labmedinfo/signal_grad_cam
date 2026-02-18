@@ -97,14 +97,14 @@ def pytorch_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=[data_names[-1]], results_dir_path=results_dir,
-                                                            contrastive_foil_classes=contrastive_foil_class)
+                                                            contrastive_foils=contrastive_foil_class)
     comparison_algorithm = "Grad-CAM"
     cam_builder.overlapped_output_display(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
                                           explainer_types=comparison_algorithm, target_classes=[fact_class],
                                           target_layers=target_layers_names, data_names=[data_names[-1]],
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
-                                          results_dir_path=results_dir, contrastive_foil_classes=contrastive_foil_class)
+                                          results_dir_path=results_dir, contrastive_foils=contrastive_foil_class)
 
 
 def tensorflow_model_testing():
@@ -152,14 +152,14 @@ def tensorflow_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=[data_names[-1]], results_dir_path=results_dir,
-                                                            contrastive_foil_classes=contrastive_foil_class)
+                                                            contrastive_foils=contrastive_foil_class)
 
     cam_builder.overlapped_output_display(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
                                           explainer_types=comparison_algorithm, target_classes=[fact_class],
                                           target_layers=target_layers_names, data_names=[data_names[-1]],
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
-                                          results_dir_path=results_dir, contrastive_foil_classes=contrastive_foil_class)
+                                          results_dir_path=results_dir, contrastive_foils=contrastive_foil_class)
 
 
 # Main

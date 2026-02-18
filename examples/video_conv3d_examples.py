@@ -108,7 +108,7 @@ def pytorch_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=[data_names[0]], results_dir_path=results_dir,
-                                                            contrastive_foil_classes=contrastive_foil_class,
+                                                            contrastive_foils=contrastive_foil_class,
                                                             video_fps_list=[fps_list[0]])
 
     cam_builder.overlapped_output_display(data_list=[data_list[0]], data_labels=[data_labels[0]],
@@ -116,7 +116,7 @@ def pytorch_model_testing():
                                           explainer_types=comparison_algorithm, target_classes=[target_class],
                                           target_layers=target_layers_names, data_names=[data_names[0]],
                                           bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
-                                          contrastive_foil_classes=contrastive_foil_class, video_fps_list=[fps_list[0]])
+                                          contrastive_foils=contrastive_foil_class, video_fps_list=[fps_list[0]])
 
     cam_builder.single_channel_output_display(data_list=[data_list[0]], data_labels=[data_labels[0]],
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
@@ -124,7 +124,7 @@ def pytorch_model_testing():
                                               target_layers=target_layers_names, data_names=[data_names[0]],
                                               bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
                                               channel_names=channel_names, video_fps_list=[fps_list[0]],
-                                              video_channel_idx=1, contrastive_foil_classes=contrastive_foil_class)
+                                              video_channel_idx=1, contrastive_foils=contrastive_foil_class)
 
 def tensorflow_model_testing():
     # Load data
@@ -196,14 +196,14 @@ def tensorflow_model_testing():
                                                             target_classes=target_class, explainer_types=comparison_algorithm,
                                                             target_layers=target_layers_names, softmax_final=True,
                                                             results_dir_path=results_dir,
-                                                            contrastive_foil_classes=contrastive_foil_class,
+                                                            contrastive_foils=contrastive_foil_class,
                                                             show_single_video_frames=True)
 
     cam_builder.overlapped_output_display(data_list=[data_list[0]], data_labels=[data_labels[0]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
                                           explainer_types=comparison_algorithm, target_classes=[target_class],
                                           target_layers=target_layers_names, bar_ranges_dict=bar_ranges,
-                                          results_dir_path=results_dir, contrastive_foil_classes=contrastive_foil_class,
+                                          results_dir_path=results_dir, contrastive_foils=contrastive_foil_class,
                                           show_single_video_frames=True)
 
 

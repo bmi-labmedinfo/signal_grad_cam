@@ -125,7 +125,7 @@ class TorchCamBuilder(CamBuilder):
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor], target_class: int,
                                  target_layer: nn.Module, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, contrastive_foil_class: int = None,
+                                 extra_inputs_list: List[Any] = None, contrastive_foil: int | float = None,
                                  eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
@@ -142,11 +142,12 @@ class TorchCamBuilder(CamBuilder):
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
+        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the
             model's forward method.
-        :param contrastive_foil_class: (optional, default is None) An integer representing the comparative class (foil)
-            for the explanation in the context of Contrastive Explanations. If None, the explanation would follow the
-            classical paradigm.
+        :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
+            tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
+            contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -221,17 +222,18 @@ class TorchCamBuilder(CamBuilder):
                     target_scores = torch.cat([-outputs, outputs], dim=1)
                     target_probs = torch.cat([1 - p, p], dim=1)
 
-        class_idx = target_class if contrastive_foil_class is None else [target_class, contrastive_foil_class]
+        class_idx = target_class if contrastive_foil is None else [target_class, contrastive_foil]
         target_probs = target_probs[:, class_idx].cpu().detach().numpy()
 
         cam_list = []
         for i in range(len(data_list)):
             self.model.zero_grad()
-            if contrastive_foil_class is None:
+            if contrastive_foil is None:
                 target_score = target_scores[i, target_class]
             else:
-                contrastive_foil = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil_class])))
-                target_score = nn.CrossEntropyLoss()(target_scores[i].unsqueeze(0), contrastive_foil)
+                contrastive_foil_torch = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil])))
+                loss = nn.CrossEntropyLoss() if not self.is_regression_network else nn.MSELoss()
+                target_score = loss(target_scores[i].unsqueeze(0), contrastive_foil_torch)
             target_score.backward(retain_graph=True)
 
             if explainer_type == "HiResCAM":

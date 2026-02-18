@@ -108,7 +108,7 @@ def pytorch_model_testing():
                                                             data_shape_list=[data_shape_list[1]],
                                                             channel_names=channel_names, time_names=time_names,
                                                             axes_names=axes_names,
-                                                            contrastive_foil_classes=contrastive_foil_class)
+                                                            contrastive_foils=contrastive_foil_class)
     comparison_algorithm = "HiResCAM"
     cam_builder.overlapped_output_display(data_list=[data_list[1]], data_labels=[data_labels[1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
@@ -116,7 +116,7 @@ def pytorch_model_testing():
                                           target_layers=target_layers_names, data_names=[data_names[1]],
                                           fig_size=(10, 7), grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
                                           results_dir_path=results_dir, axes_names=axes_names,
-                                          contrastive_foil_classes=contrastive_foil_class)
+                                          contrastive_foils=contrastive_foil_class)
     cam_builder.single_channel_output_display(data_list=[data_list[1]], data_labels=[data_labels[1]],
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
                                               explainer_types=comparison_algorithm, target_classes=fact_class,
@@ -124,7 +124,7 @@ def pytorch_model_testing():
                                               fig_size=(12, 10), desired_channels=[0, 50, 125],
                                               bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
                                               axes_names=axes_names, line_width=0.5, marker_width=50,
-                                              contrastive_foil_classes=contrastive_foil_class)
+                                              contrastive_foils=contrastive_foil_class)
 
 
 def tensorflow_model_testing():
@@ -189,7 +189,7 @@ def tensorflow_model_testing():
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=data_names, results_dir_path=results_dir,
                                                             data_sampling_freq=fc, dt=1, channel_names=ecg_leads,
-                                                            contrastive_foil_classes=contrastive_foil_classes)
+                                                            contrastive_foils=contrastive_foil_classes)
     comparison_algorithms = ["Grad-CAM", "HiResCAM"]
     cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels,
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
@@ -198,7 +198,7 @@ def tensorflow_model_testing():
                                               fig_size=(30, 10), grid_instructions=(4, 3), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=1,
                                               channel_names=ecg_leads, line_width=0.5, marker_width=10,
-                                              contrastive_foil_classes=contrastive_foil_classes)
+                                              contrastive_foils=contrastive_foil_classes)
 
 
 # Main

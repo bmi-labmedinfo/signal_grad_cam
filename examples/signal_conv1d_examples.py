@@ -106,7 +106,7 @@ def pytorch_model_testing():
     # Draw CAMs
     cam_builder = TorchCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=0)
     target_layers_names = "stage_list.6.block_list.3.conv3.conv"
-    cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
+    '''cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
                                                             target_classes=target_classes,
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
@@ -121,7 +121,7 @@ def pytorch_model_testing():
                                               target_layers=target_layers_names, data_names=data_names, fig_size=(8, 6),
                                               grid_instructions=(1, 1), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=10,
-                                              line_width=0.5, marker_width=30, axes_names=(None, "Amplitude (mV)"))
+                                              line_width=0.5, marker_width=30, axes_names=(None, "Amplitude (mV)"))'''
 
     # Contrastive explainability: Why "atrial fibrillation", rather than "normal sinus rhythm" or "other"?
     fact_classes = [0, 1, 2, 3]
@@ -132,7 +132,7 @@ def pytorch_model_testing():
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=data_names, results_dir_path=results_dir,
                                                             data_sampling_freq=fc,
-                                                            contrastive_foil_classes=contrastive_foil_classes)
+                                                            contrastive_foils=contrastive_foil_classes)
     comparison_algorithms = ["Grad-CAM", "HiResCAM"]
     cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels,
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
@@ -141,7 +141,7 @@ def pytorch_model_testing():
                                               fig_size=(30, 6), grid_instructions=(1, 1), bar_ranges_dict=bar_ranges,
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=10,
                                               line_width=0.5, marker_width=20, axes_names=(None, "Amplitude (mV)"),
-                                              contrastive_foil_classes=contrastive_foil_classes)
+                                              contrastive_foils=contrastive_foil_classes)
 
 
 def tensorflow_model_testing():
@@ -206,7 +206,7 @@ def tensorflow_model_testing():
                                                             target_layers=target_layers_names, softmax_final=True,
                                                             data_names=data_names, results_dir_path=results_dir,
                                                             data_sampling_freq=fc, dt=1, aspect_factor=20,
-                                                            contrastive_foil_classes=contrastive_foil_class)
+                                                            contrastive_foils=contrastive_foil_class)
     comparison_algorithm = "Grad-CAM"
     cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels,
                                               predicted_probs_dict=predicted_probs, cams_dict=cams,
@@ -216,7 +216,7 @@ def tensorflow_model_testing():
                                               results_dir_path=results_dir, data_sampling_freq=fc, dt=10,
                                               line_width=0.05, marker_width=30,
                                               axes_names=(None, "Digital Audio Amplitude"),
-                                              contrastive_foil_classes=contrastive_foil_class)
+                                              contrastive_foils=contrastive_foil_class)
 
 
 # Main
