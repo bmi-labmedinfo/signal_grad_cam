@@ -849,7 +849,7 @@ class CamBuilder:
             else:
                 title_str = ("Why '" + self.class_names[target_class] + "' (confidence = " +
                              str(np.round(predicted_probs[i][0] * 100, 2)) + "%), rather than '" +
-                             self.class_names[contrastive_foil] + "'(confidence = " +
+                             self.class_names[contrastive_foil] + "' (confidence = " +
                              str(np.round(predicted_probs[i][1] * 100, 2)) + "%)?")
 
             # Display CAM

@@ -214,7 +214,9 @@ class TfCamBuilder(CamBuilder):
         with tf.GradientTape() as tape:
             self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
 
-            flag = False
+            if isinstance(outputs, list):
+                outputs = outputs[self.model_output_index] if self.model_output_index is not None else outputs[0]
+
             if softmax_final:
                 target_probs = outputs
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
@@ -233,11 +235,6 @@ class TfCamBuilder(CamBuilder):
                         target_probs = tf.concat([1 - target_probs, target_probs], axis=1)
             else:
                 target_scores = outputs
-                try:
-                    _ = outputs.shape
-                except AttributeError:
-                    outputs = outputs[0]
-                    flag = True
                 if len(outputs.shape) == 2 and outputs.shape[1] > 1:
                     target_probs = tf.nn.softmax(target_scores, axis=1)
                 else:
@@ -249,9 +246,6 @@ class TfCamBuilder(CamBuilder):
                         target_scores = tf.concat([-outputs, outputs], axis=1)
                         target_probs = tf.concat([1 - p, p], axis=1)
 
-            if flag:
-                target_scores = target_scores[0]
-                target_probs = target_probs[0]
             if contrastive_foil is not None:
                 contrastive_foil_tf = tf.constant([contrastive_foil] * target_scores.shape[0], dtype=target_scores.dtype)
 
