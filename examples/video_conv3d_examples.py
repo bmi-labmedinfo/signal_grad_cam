@@ -102,7 +102,7 @@ def pytorch_model_testing():
                                               channel_names=channel_names, video_fps_list=fps_list, video_channel_idx=1)
 
     # Contrastive Explanations: Why "javelin_throw", rather than "throwing ball"?
-    contrastive_foil_class = 357
+    contrastive_foil_class = [166, 244, 357]#357
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list=[data_list[0]], data_labels=[data_labels[0]],
                                                             target_classes=target_class,
                                                             explainer_types=explainer_types,

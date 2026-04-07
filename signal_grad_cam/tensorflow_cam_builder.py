@@ -246,20 +246,18 @@ class TfCamBuilder(CamBuilder):
                         target_scores = tf.concat([-outputs, outputs], axis=1)
                         target_probs = tf.concat([1 - p, p], axis=1)
 
+            target_score = target_scores[:, target_class]
             if contrastive_foil is not None:
-                contrastive_foil_tf = tf.constant([contrastive_foil] * target_scores.shape[0], dtype=target_scores.dtype)
-
                 if not self.is_regression_network:
-                    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+                    foil_score = target_scores[:, contrastive_foil]
                 else:
-                    loss = tf.keras.losses.MeanSquaredError()
-                target_scores = loss(contrastive_foil_tf, target_scores)
+                    foil_score = tf.cast(contrastive_foil, target_scores.dtype)
+                    foil_score = tf.ones_like(target_scores) * foil_score
+                target_score = target_score - foil_score
                 target_probs = tf.gather(target_probs, [target_class, contrastive_foil], axis=1)
             else:
-                target_scores = target_scores[:, target_class]
                 target_probs = target_probs[:, target_class]
-
-            self.gradients = tape.gradient(target_scores, self.activations)
+            self.gradients = tape.gradient(target_score, self.activations)
 
         cam_list = []
         is_2d_layer = self._is_2d_layer(target_layer)

@@ -228,12 +228,13 @@ class TorchCamBuilder(CamBuilder):
         cam_list = []
         for i in range(len(data_list)):
             self.model.zero_grad()
-            if contrastive_foil is None:
-                target_score = target_scores[i, target_class]
-            else:
-                contrastive_foil_torch = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil])))
-                loss = nn.CrossEntropyLoss() if not self.is_regression_network else nn.MSELoss()
-                target_score = loss(target_scores[i].unsqueeze(0), contrastive_foil_torch)
+            target_score = target_scores[i, target_class] if not self.is_regression_network else target_scores[i]
+            if contrastive_foil is not None:
+                if not self.is_regression_network:
+                    foil_score = target_scores[i, contrastive_foil]
+                else:
+                    foil_score = torch.autograd.Variable(torch.from_numpy(np.asarray([contrastive_foil])))
+                target_score = target_score - foil_score
             target_score.backward(retain_graph=True)
 
             if explainer_type == "HiResCAM":

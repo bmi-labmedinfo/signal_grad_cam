@@ -144,9 +144,9 @@ def tensorflow_model_testing():
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
                                           results_dir_path=results_dir)
 
-    # Contrastive Explanations: Why "golden retriever", rather than "tabby cat"?
-    fact_class = 207
-    contrastive_foil_class = 281
+    # Contrastive Explanations: e.g., Why "golden retriever", rather than "tabby cat"?
+    fact_class = [1, 207, 212, 281]
+    contrastive_foil_class = [1, 207, 212, 281]
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                                             target_classes=fact_class,
                                                             explainer_types=explainer_types,
@@ -156,7 +156,7 @@ def tensorflow_model_testing():
 
     cam_builder.overlapped_output_display(data_list=[data_list[-1]], data_labels=[data_labels[-1]],
                                           predicted_probs_dict=predicted_probs, cams_dict=cams,
-                                          explainer_types=comparison_algorithm, target_classes=[fact_class],
+                                          explainer_types=comparison_algorithm, target_classes=fact_class,
                                           target_layers=target_layers_names, data_names=[data_names[-1]],
                                           grid_instructions=(3, 1), bar_ranges_dict=bar_ranges,
                                           results_dir_path=results_dir, contrastive_foils=contrastive_foil_class)

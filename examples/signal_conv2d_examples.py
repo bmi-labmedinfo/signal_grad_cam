@@ -202,6 +202,6 @@ def tensorflow_model_testing():
 
 
 # Main
-#pytorch_model_testing()
+pytorch_model_testing()
 print("\n===========================================================================================================\n")
 tensorflow_model_testing()
