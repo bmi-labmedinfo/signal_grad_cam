@@ -245,7 +245,7 @@ class CamBuilder:
                                   channel_names: List[str | float] = None, video_fps_list: List[float] = None,
                                   show_single_video_frames: bool = False, time_names: List[str | float] = None,
                                   axes_names: Tuple[str | None, str | None] | List[str | None] = None,
-                                  fig_size: Tuple[int, int] = None) -> None:
+                                  fig_size: Tuple[int, int] = None, alpha: float = 0.3) -> None:
         """
         Generates a superimposition of the input data and the selected CAMs, useful for visualizing image explanations
         and multichannel signals with numerous channels, such as frequency spectra.
@@ -297,6 +297,8 @@ class CamBuilder:
             respectively.
         :param fig_size: (optional, default is None) A tuple of integers defining the dimensions of the output figure.
             The expected format is width x height in inches.
+        :param alpha: (optional, default is 0.3) A numerical value between 0 and 1 representing the transparency level
+            of the CAM overlay.
         """
 
         # Check input types
@@ -333,7 +335,7 @@ class CamBuilder:
                                 norm = self.__get_norm(cam)
                                 map = plt.imshow(cam, cmap="inferno", aspect=aspect, norm=norm)
                                 self.__set_colorbar(bar_ranges_dict[item_key], i)
-                                map.set_alpha(0.3)
+                                map.set_alpha(alpha)
 
                                 self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names=time_names,
                                                 axes_names=axes_names)
