@@ -118,7 +118,7 @@ class CamBuilder:
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
                 data_names: List[str] = None, contrastive_foils: int | List[int] | float | List[float] = None,
                 data_sampling_freq: float = None, dt: float = 10, channel_names: List[str | float] = None,
-                results_dir_path: str = None, aspect_factor: float = 100, data_shape_list: List[Tuple[int, int]] = None,
+                results_dir_path: str = "", aspect_factor: float = 100, data_shape_list: List[Tuple[int, int]] = None,
                 extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
                 video_fps_list: List[float] = None, show_single_video_frames: bool = False,
                 time_names: List[str | float] = None,
@@ -155,7 +155,7 @@ class CamBuilder:
             in the output display.
         :param channel_names: (optional, default is None) A list of strings where each string represents the name of a
             signal channel for tick settings.
-        :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
+        :param results_dir_path: (optional, default is "") A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
         :param aspect_factor: (optional, default is 100) A numerical value to set the aspect ratio of the output signal
             one-dimensional CAM. Note that this value should be grater than the length of the input signal considered,
@@ -241,7 +241,7 @@ class CamBuilder:
                                   contrastive_foils: int | List[int] | float | List[float] = None,
                                   grid_instructions: Tuple[int, int] = None,
                                   bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
-                                  results_dir_path: str = None, data_sampling_freq: float = None, dt: float = 10,
+                                  results_dir_path: str = "", data_sampling_freq: float = None, dt: float = 10,
                                   channel_names: List[str | float] = None, video_fps_list: List[float] = None,
                                   show_single_video_frames: bool = False, time_names: List[str | float] = None,
                                   axes_names: Tuple[str | None, str | None] | List[str | None] = None,
@@ -280,7 +280,7 @@ class CamBuilder:
         :param bar_ranges_dict: A dictionary storing a tuple of np.ndarrays. Each tuple contains two np.ndarrays
             corresponding to the minimum and maximum importance scores per CAM for each item in the input data list,
             based on a given setting (defined by algorithm, target layer, and target class).
-        :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
+        :param results_dir_path: (optional, default is "") A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
         :param data_sampling_freq: (optional, default is None) A numerical value representing the sampling frequency of
             signal inputs in samples per second.
@@ -368,7 +368,7 @@ class CamBuilder:
                                       contrastive_foils: int | List[int] | float | List[float] = None,
                                       grid_instructions: Tuple[int, int] = None,
                                       bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
-                                      results_dir_path: str = None, data_sampling_freq: float = None, dt: float = 10,
+                                      results_dir_path: str = "", data_sampling_freq: float = None, dt: float = 10,
                                       channel_names: List[str | float] = None, video_fps_list: List[float] = None,
                                       video_channel_idx: int = -1, show_single_video_frames: bool = False,
                                       time_names: List[str | float] = None,
@@ -410,7 +410,7 @@ class CamBuilder:
         :param bar_ranges_dict: A dictionary storing a tuple of np.ndarrays. Each tuple contains two np.ndarrays
                 corresponding to the minimum and maximum importance scores per CAM for each item in the input data list,
                 based on a given setting (defined by algorithm, target layer, and target class).
-        :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
+        :param results_dir_path: (optional, default is "") A string representing the relative path to the directory
             for storing results. If None, the output will be displayed in a figure.
         :param data_sampling_freq: (optional, default is None) A numerical value representing the sampling frequency of
             signal inputs in samples per second.
@@ -779,7 +779,7 @@ class CamBuilder:
         return cam_list, bar_ranges
 
     def __display_output(self, data_labels: List[int], target_class: int, explainer_type: str, target_layer: str,
-                         cam_list: List[np.ndarray], predicted_probs: np.ndarray, results_dir_path: str | None,
+                         cam_list: List[np.ndarray], predicted_probs: np.ndarray, results_dir_path: str,
                          data_names: List[str], data_sampling_freq: float = None, dt: float = 10,
                          aspect_factor: float = 100, bar_ranges: Tuple[np.ndarray, np.ndarray] = None,
                          channel_names: List[str | float] = None, time_names: List[str | float] = None,
@@ -832,8 +832,9 @@ class CamBuilder:
         :param channel_name: (optional, default is None) A string representing the name of the channel being explained.
         """
 
-        if results_dir_path:
-            os.makedirs(results_dir_path, exist_ok=True)
+        if results_dir_path != "":
+            if not os.path.exists(results_dir_path):
+                os.makedirs(results_dir_path)
 
         is_2d_layer = self._is_2d_layer(self._get_layers_pool(extend_search=self.extend_search)[target_layer])
         is_3d_layer = is_2d_layer is None
@@ -1083,7 +1084,7 @@ class CamBuilder:
             name_addon = ""
             descr_addon = ""
 
-        if results_dir_path is not None:
+        if results_dir_path != "":
             filepath = results_dir_path
             if item_name is not None:
                 data_name = str(item_name).replace(" ", "_").lower()
