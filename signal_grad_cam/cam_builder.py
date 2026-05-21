@@ -779,7 +779,7 @@ class CamBuilder:
         return cam_list, bar_ranges
 
     def __display_output(self, data_labels: List[int], target_class: int, explainer_type: str, target_layer: str,
-                         cam_list: List[np.ndarray], predicted_probs: np.ndarray, results_dir_path: str,
+                         cam_list: List[np.ndarray], predicted_probs: np.ndarray, results_dir_path: str | None,
                          data_names: List[str], data_sampling_freq: float = None, dt: float = 10,
                          aspect_factor: float = 100, bar_ranges: Tuple[np.ndarray, np.ndarray] = None,
                          channel_names: List[str | float] = None, time_names: List[str | float] = None,
@@ -832,12 +832,9 @@ class CamBuilder:
         :param channel_name: (optional, default is None) A string representing the name of the channel being explained.
         """
 
-        try:
-            if results_dir_path is not None:
-                if not os.path.exists(results_dir_path):
-                    os.makedirs(results_dir_path)
-        except TypeError:
-            pass
+        if results_dir_path is not None:
+            if not os.path.exists(results_dir_path):
+                os.makedirs(results_dir_path)
 
         is_2d_layer = self._is_2d_layer(self._get_layers_pool(extend_search=self.extend_search)[target_layer])
         is_3d_layer = is_2d_layer is None
