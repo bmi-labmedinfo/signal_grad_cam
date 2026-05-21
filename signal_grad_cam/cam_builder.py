@@ -832,7 +832,7 @@ class CamBuilder:
         :param channel_name: (optional, default is None) A string representing the name of the channel being explained.
         """
 
-        if not os.path.exists(results_dir_path):
+        if results_dir_path is not None and not os.path.exists(results_dir_path):
             os.makedirs(results_dir_path)
 
         is_2d_layer = self._is_2d_layer(self._get_layers_pool(extend_search=self.extend_search)[target_layer])
