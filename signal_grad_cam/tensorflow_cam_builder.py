@@ -18,7 +18,7 @@ class TfCamBuilder(CamBuilder):
     HiResCAM.
     """
 
-    def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], tf.Tensor]
+    def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray | tf.Tensor, *tuple[Any, ...]], tf.Tensor]
                  = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
                  extend_search: bool = False, padding_dim: int = None, seed: int = 11):
@@ -30,9 +30,10 @@ class TfCamBuilder(CamBuilder):
         :param model: (mandatory) A tf.keras.Model or any object (with TensorFlow/Keras layers among its attributes)
             representing a convolutional neural network model to be explained. Unconventional models should always be
             set to inference mode before being provided as inputs.
-        :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
-            evaluation. This function is also expected to convert data into TensorFlow tensors. The function may
-            optionally take as a second input a list of objects required by the preprocessing method.
+        :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data or TensorFlow
+            tensors before model evaluation. This function is also expected to convert data into TensorFlow tensors, if
+            necessary. The function may optionally take as a second input a list of objects required by the
+            preprocessing method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating whether the input signal's time axis is
@@ -164,8 +165,8 @@ class TfCamBuilder(CamBuilder):
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A list of np.ndarrays or TensorFlow tensors to be explained, representing either a
+            signal, an image, or a video/volume.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either TensorFlow/Keras layers or it should be a class dictionary key, used to retrieve the layer

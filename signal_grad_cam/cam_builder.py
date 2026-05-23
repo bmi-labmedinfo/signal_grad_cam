@@ -26,7 +26,7 @@ class CamBuilder:
                        "HiResCAM": "High-Resolution Class Activation Mapping"}
 
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
-                 transform_fn: Callable[[np.ndarray, *tuple[Any, ...]], torch.Tensor | tf.Tensor] = None,
+                 transform_fn: Callable[[np.ndarray | np.ndarray | torch.Tensor, *tuple[Any, ...]], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
                  ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
                  extend_search: bool = False, padding_dim: int = None, seed: int = 11):
@@ -38,9 +38,10 @@ class CamBuilder:
         :param model: (mandatory) A torch.nn.Module, tf.keras.Model, or any object (with PyTorch or TensorFlow/Keras
             layers among its attributes) representing a convolutional neural network model to be explained.
             Unconventional models should always be set to inference mode before being provided as inputs.
-        :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data before model
-            evaluation. This function is also expected to convert data into either PyTorch or TensorFlow tensors. The
-            function may optionally take as a second input a list of objects required by the preprocessing method.
+        :param transform_fn: (optional, default is None) A callable function to preprocess np.ndarray data, PyTorch
+            tensors, or TensorFlow tensors before model evaluation. This function is also expected to convert data into
+            either PyTorch or TensorFlow tensors, if necessary. The function may optionally take as a second input a
+            list of objects required by the preprocessing method.
         :param class_names: (optional, default is None) A list of strings where each string represents the name of an
             output class.
         :param time_axs: (optional, default is 1) An integer index indicating for the position of the time
@@ -114,7 +115,8 @@ class CamBuilder:
         self._get_layers_pool(show=True, extend_search=extend_search)
         print()
 
-    def get_cam(self, data_list: List[np.ndarray], data_labels: List[int], target_classes: int | List[int],
+    def get_cam(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
+                data_labels: int | List[int], target_classes: int | List[int],
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
                 data_names: List[str] = None, contrastive_foils: int | List[int] | float | List[float] = None,
                 data_sampling_freq: float = None, dt: float = 10, channel_names: List[str | float] = None,
@@ -130,8 +132,9 @@ class CamBuilder:
         outputs, enabling a customized display of CAMs. Optional inputs are employed for a more detailed
         visualization of the results.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
+            list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
+            these instances can be either signals, an images, or a videos/volumes.
         :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
         :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
             explanation.
@@ -191,8 +194,8 @@ class CamBuilder:
         data_names = self.__check_data_names(data_names, data_list)
 
         # Check input types
-        target_classes, explainer_types, target_layers, contrastive_foils = self.__check_input_types(
-            target_classes, explainer_types, target_layers, contrastive_foils)
+        data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
         for explainer_type in explainer_types:
             if explainer_type not in self.explainer_types:
                 raise ValueError("'explainer_types' should be an explainer identifier or a list of explainer "
@@ -233,8 +236,9 @@ class CamBuilder:
         return cams_dict, predicted_probs_dict, bar_ranges_dict
 
     # Check data names
-    def overlapped_output_display(self, data_list: List[np.ndarray], data_labels: List[int],
-                                  predicted_probs_dict: Dict[str, np.ndarray], cams_dict: Dict[str, List[np.ndarray]],
+    def overlapped_output_display(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
+                                  data_labels: int | List[int], predicted_probs_dict: Dict[str, np.ndarray],
+                                  cams_dict: Dict[str, List[np.ndarray]],
                                   explainer_types: str | List[str], target_classes: int | List[int],
                                   target_layers: str | List[str], target_item_ids: List[int] = None,
                                   data_names: List[str] = None,
@@ -251,8 +255,9 @@ class CamBuilder:
         and multichannel signals with numerous channels, such as frequency spectra.
 
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
+            list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
+            these instances can be either signals, an images, or a videos/volumes.
         :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
             class probabilities for each item in the input list.
@@ -302,8 +307,8 @@ class CamBuilder:
         """
 
         # Check input types
-        target_classes, explainer_types, target_layers, contrastive_foils = self.__check_input_types(
-            target_classes, explainer_types, target_layers, contrastive_foils)
+        data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
         if target_item_ids is None:
             target_item_ids = list(range(len(data_list)))
 
@@ -359,10 +364,10 @@ class CamBuilder:
                                                   bar_ranges=bar_ranges_dict[item_key], axes_names=axes_names,
                                                   contrastive_foil=contrastive_foil,
                                                   video_fps_list=video_fps_list, video_list=data_list,
-                                                  show_single_video_frames=show_single_video_frames)
+                                                  show_single_video_frames=show_single_video_frames, alpha=alpha)
 
-    def single_channel_output_display(self, data_list: List[np.ndarray], data_labels: List[int],
-                                      predicted_probs_dict: Dict[str, np.ndarray],
+    def single_channel_output_display(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
+                                      data_labels: int | List[int], predicted_probs_dict: Dict[str, np.ndarray],
                                       cams_dict: Dict[str, List[np.ndarray]], explainer_types: str | List[str],
                                       target_classes: int | List[int], target_layers: str | List[str],
                                       target_item_ids: List[int] = None, desired_channels: List[int] = None,
@@ -382,8 +387,9 @@ class CamBuilder:
         visualization is useful for interpreting signal explanations with a limited number of channels. If many channels
         are present, it is recommended to select only a subset.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
+            list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
+            these instances can be either signals, an images, or a videos/volumes.
         :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
             class probabilities for each item in the input list.
@@ -438,8 +444,8 @@ class CamBuilder:
         """
 
         # Check input types
-        target_classes, explainer_types, target_layers, contrastive_foils = self.__check_input_types(
-            target_classes, explainer_types, target_layers, contrastive_foils)
+        data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
         if desired_channels is None:
             try:
                 desired_channels = list(range(data_list[0].shape[1]))
@@ -567,8 +573,8 @@ class CamBuilder:
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
         and target class). Additionally, it returns the class probabilities predicted by the model.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
+            representing either a signal, an image, or a video/volume.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
@@ -630,7 +636,7 @@ class CamBuilder:
                              "will need to instantiate either a 'TorchCamBuilder' or a 'TfCamBuilder' instance to use "
                              "it.")
 
-    def __create_batched_cams(self, data_list: List[np.ndarray], target_class: int, target_layer: str,
+    def __create_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int, target_layer: str,
                               explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
                               extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
                               contrastive_foil: int | float = None, eps: float = 1e-6) \
@@ -640,8 +646,8 @@ class CamBuilder:
         layer, and target class), along with class probabilities predicted by the model. Additionally, it adjusts the
         output CAMs in both shape and value range (0-255), and returns the original importance score range.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
+            representing either a signal, an image, or a video/volume.
         :param target_class: (mandatory) An integer representing the target classe for the explanation.
         :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
@@ -679,7 +685,14 @@ class CamBuilder:
 
         # Preprocess data
         if data_shape_list is None:
-            data_shape_list = [data_element.shape for data_element in data_list]
+            def _shape_tuple(x):
+                try:
+                    return tuple(int(s) if s is not None else -1 for s in x.shape)
+                except Exception:
+                    return tuple(np.array(x).shape)
+
+            data_shape_list = [_shape_tuple(data_element) for data_element in data_list]
+
         if self.transform_fn is not None:
             if extra_preprocess_inputs_list is not None:
                 data_list = [self.transform_fn(data_element, *extra_preprocess_inputs_list[i]) for i, data_element in
@@ -689,9 +702,32 @@ class CamBuilder:
 
         # Ensure data have consistent size for batching
         if len(data_list) > 1 and self.padding_dim is None:
-            data_shape_list_processed = [tuple(data_element.shape) for data_element in data_list]
+            def _shape_tuple_from(x):
+                try:
+                    return tuple(int(s) if s is not None else -1 for s in x.shape)
+                except Exception:
+                    return tuple(np.array(x).shape)
+            data_shape_list_processed = [_shape_tuple_from(x) for x in data_list]
+
             if len(set(data_shape_list_processed)) != 1:
-                data_list = [np.resize(x, data_shape_list_processed[0]) for x in data_list]
+                def _resize_any(x, shape):
+                    target_shape = tuple(shape)
+                    if isinstance(x, np.ndarray):
+                        return np.resize(x, target_shape)
+                    if torch.is_tensor(x):
+                        np_view = x.detach().cpu().numpy()
+                        resized = np.resize(np_view, target_shape)
+                        device = x.device
+                        return torch.tensor(resized, dtype=x.dtype, device=device)
+                    if isinstance(x, tf.Tensor):
+                        np_view = x.numpy()
+                        resized = np.resize(np_view, target_shape)
+                        return tf.constant(resized, dtype=x.dtype)
+                    arr = np.asarray(x)
+                    return np.resize(arr, target_shape)
+
+                target_shape = tuple(data_shape_list_processed[0])
+                data_list = [_resize_any(x, target_shape) for x in data_list]
                 self.__print_justify("\nInput data items have different shapes. Each item has been reshaped to match the"
                                      " first item's dimensions for batching. To prevent this, provide one item at a "
                                      "time.")
@@ -787,7 +823,7 @@ class CamBuilder:
                          channel_names: List[str | float] = None, time_names: List[str | float] = None,
                          axes_names: Tuple[str | None, str | None] = None, contrastive_foil: int | float = None,
                          video_fps_list: List[float] = None, video_list: List[np.ndarray] = None,
-                         show_single_video_frames: bool = False, channel_name: str = None) -> None:
+                         show_single_video_frames: bool = False, channel_name: str = None, alpha: float = 0.3) -> None:
         """
         Create plots displaying the obtained CAMs, set their axes, and show them as multiple figures or as ".png" files.
 
@@ -832,6 +868,8 @@ class CamBuilder:
         :param show_single_video_frames: (optional, default is False) A boolean flag indicating whether to store single
             frames with the corresponding CAM. For 3D CAMs only.
         :param channel_name: (optional, default is None) A string representing the name of the channel being explained.
+        :param alpha: (optional, default is 0.3) A numerical value between 0 and 1 representing the transparency level
+            of the CAM overlay.
         """
 
         if results_dir_path is not None:
@@ -887,7 +925,8 @@ class CamBuilder:
                         is_overlapped = True
                 else:
                     video = None
-                frames = self.__render_3d_frames(map, title_str, bar_ranges=bar_ranges, batch_idx=i, video=video)
+                frames = self.__render_3d_frames(map, title_str, bar_ranges=bar_ranges, batch_idx=i, video=video,
+                                                 alpha=alpha)
 
             # Set axis
             self.__set_axes(map, data_sampling_freq, dt, channel_names, time_names=time_names, axes_names=axes_names)
@@ -901,15 +940,15 @@ class CamBuilder:
                                 data_name, frames=frames, fps=fps, is_overlapped=is_overlapped,
                                 show_single_video_frames=show_single_video_frames, channel_name=channel_name)
 
-    def __get_data_for_plots(self, data_list: List[np.ndarray], i: int, target_item_ids: List[int],
+    def __get_data_for_plots(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], i: int, target_item_ids: List[int],
                              cams_dict: Dict[str, List[np.ndarray]], explainer_type: str, target_layer: str,
                              target_class: int, contrastive_foil: int) -> Tuple[np.ndarray, np.ndarray, int, str]:
         """
         Prepares input data and CAMs to be plotted, identifying the string key to retrieve CAMs, probabilities and
         ranges from the corresponding dictionaries.
 
-        :param data_list: (mandatory) A list of np.ndarrays to be explained, representing either a signal, an image, or
-            a video/volume.
+        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
+            representing either a signal, an image, or a video/volume.
         :param i: (mandatory) An integer representing the index of an item among the selected ones.
         :param target_item_ids: (optional, default is None) A list of integers representing the target item indices
             among the items in the input data list.
@@ -938,6 +977,17 @@ class CamBuilder:
         item = data_list[batch_idx]
         item_key = self.__get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
         cam = cams_dict[item_key][batch_idx]
+
+        try:
+            if isinstance(item, torch.Tensor):
+                item = item.detach().cpu().numpy()
+        except Exception:
+            pass
+        try:
+            if hasattr(tf, "Tensor") and isinstance(item, tf.Tensor):
+                item = item.numpy()
+        except Exception:
+            pass
 
         item_dims = item.shape
         if len(item_dims) == 3:
@@ -1249,13 +1299,18 @@ class CamBuilder:
             cbar.ax.get_yaxis().set_ticks([cbar.vmin, cbar.vmax], labels=[min_str, max_str])
 
     @staticmethod
-    def __check_input_types(target_classes: int | List[int], explainer_types: str | List[str],
-                            target_layers: str | List[str], contrastive_foils: int | List[int] | float | List[float]) \
-            -> Tuple[List[int], List[str], List[str], List[int]]:
+    def __check_input_types(data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
+                            data_labels: int | List[int], target_classes: int | List[int], explainer_types: str | List[str],
+                            target_layers: str | List[str], contrastive_foils: int | float | List[int | float]) \
+            -> Tuple[List[np.ndarray | torch.Tensor | tf.Tensor], List[int], List[int], List[str], List[str], List[int]]:
         """
         Checks whether the setting specifics (target classes, explainer algorithms, and target layers) are provided
         as lists of values. If not, they are transformed into a list.
 
+        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
+            representing either a signal, an image, or a video/volume.
+        :param data_labels: (mandatory) An integer or a list of integers representing the true labels of the data to be
+            explained.
         :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
             explanation.
         :param explainer_types: (mandatory) A string or a list of strings representing the desired algorithms for the
@@ -1270,6 +1325,9 @@ class CamBuilder:
             Contrastive Explanations. If None, the explanation would follow the classical paradigm.
 
         :return:
+            - data_list: A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained, representing
+            either a signal, an image, or a video/volume.
+            - data_labels: A list of integers representing the true labels of the data to be explained.
             - target_classes: A list of integers representing the target classes for the explanation.
             - explainer_types: A list of strings representing the desired algorithms for the explanation. These strings
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
@@ -1282,6 +1340,10 @@ class CamBuilder:
             would follow the classical paradigm.
         """
 
+        if not isinstance(data_list, list):
+            data_list = [data_list]
+        if not isinstance(data_labels, list):
+            data_labels = [data_labels]
         if not isinstance(target_classes, list):
             target_classes = [target_classes]
         if not isinstance(explainer_types, list):
@@ -1291,7 +1353,7 @@ class CamBuilder:
         if not isinstance(contrastive_foils, list):
             contrastive_foils = [contrastive_foils]
 
-        return target_classes, explainer_types, target_layers, contrastive_foils
+        return data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils
 
     @staticmethod
     def __set_grid(n_items: int, grid_instructions: Tuple[int, int]) -> Tuple[int, int]:
@@ -1345,7 +1407,7 @@ class CamBuilder:
         print(text)
 
     def __render_3d_frames(self, cam: np.ndarray, title_str: str, bar_ranges: Tuple[np.ndarray, np.ndarray],
-                           batch_idx: int, video: np.ndarray = None) -> List[np.ndarray]:
+                           batch_idx: int, video: np.ndarray = None, alpha: float = 0.3) -> List[np.ndarray]:
         """
         Renders a 3D CAM (e.g., temporal or volumetric activation map) into a sequence of RGB frames suitable for
         visualization or GIF generation.
@@ -1358,6 +1420,8 @@ class CamBuilder:
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
         :param video: (mandatory) A np.ndarray to be explained, representing the input video/volume.
+        :param alpha: (optional, default is 0.3) A numerical value between 0 and 1 representing the transparency level
+            of the CAM overlay.
 
         :return:
             - frames: A list of np.ndarrays representing frames to be saved as a GIF animation. This parameter should be
@@ -1380,10 +1444,10 @@ class CamBuilder:
                     video_slice = np.transpose(video_slice, (1, 2, 0))
 
                 try:
-                    output_slice = (0.6 * video_slice + 0.4 * cam_slice).astype(np.uint8)
+                    output_slice = ((1 - alpha) * video_slice + alpha * cam_slice).astype(np.uint8)
                 except ValueError:
                     video_slice = np.transpose(video_slice, (1, 2, 0))
-                    output_slice = (0.6 * video_slice + 0.4 * cam_slice).astype(np.uint8)
+                    output_slice = ((1 - alpha) * video_slice + alpha * cam_slice).astype(np.uint8)
             ax.imshow(output_slice)
             ax.set_title(title_str)
 
@@ -1423,13 +1487,13 @@ class CamBuilder:
         return item_key
 
     @staticmethod
-    def __check_data_names(data_names: List[str], data_list: List[np.ndarray] = None) -> List[str]:
+    def __check_data_names(data_names: List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor] = None) -> List[str]:
         """
         Checks whether data names are provided for each item in the input data list. If not, default names are assigned.
 
         :param data_names: (mandatory) A list of strings representing the names of the input items.
-        :param data_list: (optional, default is None) A list of np.ndarrays to be explained, representing either a
-            signal, an image, or a video/volume.
+        :param data_list: (optional, default is None) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
+            representing either a signal, an image, or a video/volume.
 
         :return:
             - data_names: A list of strings representing the names of the input items.

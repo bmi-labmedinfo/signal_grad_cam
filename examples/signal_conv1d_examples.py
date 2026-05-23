@@ -1,4 +1,4 @@
-'''
+"""
 The PyTorch model used in this script was obtained from GitHub: github.com/hsd1503/resnet1d
 Licensed under the Apache License, Version 2.0, January 2004. See apache.org/licenses/LICENSE-2.0 for details.
 @inproceedings{hong2020holmes,
@@ -30,7 +30,7 @@ repository. However, they can be retrieved directly from the source.
     - The second audio file, "-0vPFx-wRRI.wav", is available at kaggle.com/datasets/zfturbo/audioset-valid
       After downloading, rename the file ("sing_fingersnap.wav") and place it in the following directory within this
       project: ./data/datasets/signal_data_1D/
-'''
+"""
 
 # Import dependencies
 import os
@@ -68,7 +68,7 @@ def pytorch_model_testing():
     with open(data_dir + "datasets/signal_data_1D/ecg.pkl", "rb") as f:
         data = pickle.load(f)
     ecg_classes = ["normal sinus rhythm", "atrial fibrillation", "other", "too noisy"]
-    fc = 300
+    sampling_freq = 300
 
     # Preprocess data
     x = data["data"]
@@ -102,6 +102,7 @@ def pytorch_model_testing():
 
     # Load the model
     model = torch.load(data_dir + "models/ecg_model_1D_torch.pth", weights_only=False)
+    model.eval()
 
     # Draw CAMs
     cam_builder = TorchCamBuilder(model, transform_fn=transform_fn, class_names=ecg_classes, time_axs=0)
@@ -111,7 +112,7 @@ def pytorch_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=data_names, results_dir_path=results_dir,
-                                                            data_sampling_freq=fc)
+                                                            data_sampling_freq=sampling_freq)
 
     # Explain different input channels
     comparison_algorithm = "Grad-CAM"
@@ -120,7 +121,7 @@ def pytorch_model_testing():
                                               explainer_types=comparison_algorithm, target_classes=target_classes,
                                               target_layers=target_layers_names, data_names=data_names, fig_size=(8, 6),
                                               grid_instructions=(1, 1), bar_ranges_dict=bar_ranges,
-                                              results_dir_path=results_dir, data_sampling_freq=fc, dt=10,
+                                              results_dir_path=results_dir, data_sampling_freq=sampling_freq, dt=10,
                                               line_width=0.5, marker_width=30, axes_names=(None, "Amplitude (mV)"))
 
     # Contrastive explainability: e.g., Why "atrial fibrillation", rather than "normal sinus rhythm"?
@@ -131,7 +132,7 @@ def pytorch_model_testing():
                                                             explainer_types=explainer_types,
                                                             target_layers=target_layers_names, softmax_final=False,
                                                             data_names=data_names, results_dir_path=results_dir,
-                                                            data_sampling_freq=fc,
+                                                            data_sampling_freq=sampling_freq,
                                                             contrastive_foils=contrastive_foil_classes)
     comparison_algorithms = ["Grad-CAM", "HiResCAM"]
     cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels,
@@ -139,7 +140,7 @@ def pytorch_model_testing():
                                               explainer_types=comparison_algorithms, target_classes=fact_classes,
                                               target_layers=target_layers_names, data_names=data_names,
                                               fig_size=(30, 6), grid_instructions=(1, 1), bar_ranges_dict=bar_ranges,
-                                              results_dir_path=results_dir, data_sampling_freq=fc, dt=10,
+                                              results_dir_path=results_dir, data_sampling_freq=sampling_freq, dt=10,
                                               line_width=0.5, marker_width=20, axes_names=(None, "Amplitude (mV)"),
                                               contrastive_foils=contrastive_foil_classes)
 

@@ -1,4 +1,4 @@
-'''
+"""
 
 The PyTorch model used in this script was obtained from TorchVision:
 pytorch.org/vision/stable/models.html#video-classification and the data come from Kinetics-400:
@@ -16,7 +16,7 @@ However, they can be retrieved directly from the source.
 The code for loading and fine-tuning the TensorFlow/Keras model used in this script was obtained from GitHub:
 https://github.com/ZFTurbo/classification_models_3D and the data come from OrganMNIST3D: medmnist.com
 
-'''
+"""
 
 # Import dependencies
 import os
@@ -38,6 +38,7 @@ from signal_grad_cam import TorchCamBuilder, TfCamBuilder
 
 # Set working directories
 working_dir = "./"
+
 
 # Test functions
 def pytorch_model_testing():
@@ -102,7 +103,7 @@ def pytorch_model_testing():
                                               channel_names=channel_names, video_fps_list=fps_list, video_channel_idx=1)
 
     # Contrastive Explanations: Why "javelin_throw", rather than "throwing ball"?
-    contrastive_foil_class = [166, 244, 357]#357
+    contrastive_foil_class = 357
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list=[data_list[0]], data_labels=[data_labels[0]],
                                                             target_classes=target_class,
                                                             explainer_types=explainer_types,
@@ -125,6 +126,7 @@ def pytorch_model_testing():
                                               bar_ranges_dict=bar_ranges, results_dir_path=results_dir,
                                               channel_names=channel_names, video_fps_list=[fps_list[0]],
                                               video_channel_idx=1, contrastive_foils=contrastive_foil_class)
+
 
 def tensorflow_model_testing():
     # Load data
@@ -210,4 +212,4 @@ def tensorflow_model_testing():
 # Main
 pytorch_model_testing()
 print("\n===========================================================================================================\n")
-tensorflow_model_testing()
+#tensorflow_model_testing()

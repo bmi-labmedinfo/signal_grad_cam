@@ -1,4 +1,4 @@
-'''
+"""
 
 The PyTorch model used in this script was obtained from TorchVision: pytorch.org/vision/stable/models.html
 
@@ -9,7 +9,7 @@ The image data used in this script were available online:
     - "english_setter.jpg": wikipedia.org/wiki/English_Setter
     - "goldfishes.jpg": wikipedia.org/wiki/Common_goldfish
 
-'''
+"""
 
 # Import dependencies
 import os

@@ -90,7 +90,7 @@ class_labels = ["Class 1", "Class 2", "Class 3"]
 cam_builder = TorchCamBuilder(model=model, transform_fn=preprocess_fn, class_names=class_labels, time_axs=1)
 ```
 
-<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from a list of input data using the <i>`get_cams`</i> method. You can specify multiple algorithm names, target layers, or target classes as needed. As described in each function's documentation, every input (such as data and labels) need to be rearranged into lists for versatility.</p>
+<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from one single input or a list of input data using the <i>`get_cams`</i> method. You can specify multiple algorithm names, target layers, or target classes as needed. As described in each function's documentation, every input (if more than one inputs are provided) need to be rearranged into lists for versatility.</p>
 
 <p align="justify">The function's attributes allow users to customize the visualization (e.g., setting axes ticks or labels). If a result directory path is provided, the output is stored as a '.png' file; otherwise, it is simply displayed. In all cases, the function returns a dictionary containing the requested CAMs, along with the model's predictions and importance score ranges.</p>
 
