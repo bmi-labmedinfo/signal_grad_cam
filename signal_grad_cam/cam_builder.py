@@ -118,7 +118,7 @@ class CamBuilder:
     def get_cam(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
                 data_labels: int | List[int], target_classes: int | List[int],
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
-                data_names: List[str] = None, contrastive_foils: int | List[int] | float | List[float] = None,
+                data_names: str | List[str] = None, contrastive_foils: int | List[int] | float | List[float] = None,
                 data_sampling_freq: float = None, dt: float = 10, channel_names: List[str | float] = None,
                 results_dir_path: str = None, aspect_factor: float = 100, data_shape_list: List[Tuple[int, int]] = None,
                 extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
@@ -135,7 +135,8 @@ class CamBuilder:
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
             these instances can be either signals, an images, or a videos/volumes.
-        :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
+        :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
+            the true labels of the data to be explained.
         :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
             explanation.
         :param explainer_types: (mandatory) A string or a list of strings representing the desired algorithms for the
@@ -146,8 +147,8 @@ class CamBuilder:
             should be class dictionary keys, used to retrieve each layer from the class attributes.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param data_names: (optional, default is None) A list of strings where each string represents the name of an
-            input item.
+        :param data_names: (optional, default is None) A string for one input or a list of strings for multiple inputs,
+            representing the names of the input items.
         :param contrastive_foils: (optional, default is None) An integer or a list of integers specifying the foil
             classes for classification tasks, or a float/integer or a list of floats/integers for regression problems
             (specifying the foil values), used to generate contrastive explanations for the explanation in the context
@@ -241,7 +242,7 @@ class CamBuilder:
                                   cams_dict: Dict[str, List[np.ndarray]],
                                   explainer_types: str | List[str], target_classes: int | List[int],
                                   target_layers: str | List[str], target_item_ids: List[int] = None,
-                                  data_names: List[str] = None,
+                                  data_names: str | List[str] = None,
                                   contrastive_foils: int | List[int] | float | List[float] = None,
                                   grid_instructions: Tuple[int, int] = None,
                                   bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
@@ -258,7 +259,8 @@ class CamBuilder:
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
             these instances can be either signals, an images, or a videos/volumes.
-        :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
+        :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
+            the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
             class probabilities for each item in the input list.
         :param cams_dict: (mandatory) A dictionary storing a list of CAMs. Each list contains CAMs for each item in the
@@ -273,8 +275,8 @@ class CamBuilder:
             should be class dictionary keys, used to retrieve each layer from the class attributes.
         :param target_item_ids: (optional, default is None) A list of integers representing the target item indices
             among the items in the input data list.
-        :param data_names: (optional, default is None) A list of strings where each string represents the name of an
-            input item.
+        :param data_names: (optional, default is None) A string for one input or a list of strings for multiple inputs,
+            representing the names of the input items.
         :param contrastive_foils: (optional, default is None) An integer or a list of integers specifying the foil
             classes for classification tasks, or a float/integer or a list of floats/integers for regression problems
             (specifying the foil values), used to generate contrastive explanations for the explanation in the context
@@ -371,7 +373,7 @@ class CamBuilder:
                                       cams_dict: Dict[str, List[np.ndarray]], explainer_types: str | List[str],
                                       target_classes: int | List[int], target_layers: str | List[str],
                                       target_item_ids: List[int] = None, desired_channels: List[int] = None,
-                                      data_names: List[str] = None,
+                                      data_names: str | List[str] = None,
                                       contrastive_foils: int | List[int] | float | List[float] = None,
                                       grid_instructions: Tuple[int, int] = None,
                                       bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
@@ -390,7 +392,8 @@ class CamBuilder:
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
             these instances can be either signals, an images, or a videos/volumes.
-        :param data_labels: (mandatory) A list of integers representing the true labels of the data to be explained.
+        :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
+            the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
             class probabilities for each item in the input list.
         :param cams_dict: (mandatory) A dictionary storing a list of CAMs. Each list contains CAMs for each item in the
@@ -407,8 +410,8 @@ class CamBuilder:
             among the items in the input data list.
         :param desired_channels: (optional, default is None) A list of integers representing the selected channels
             to be displayed.
-        :param data_names: (optional, default is None) A list of strings where each string represents the name of an
-            input item.
+        :param data_names: (optional, default is None) A string for one input or a list of strings for multiple inputs,
+            representing the names of the input items.
         :param contrastive_foils: (optional, default is None) An integer or a list of integers specifying the foil
             classes for classification tasks, or a float/integer or a list of floats/integers for regression problems
             (specifying the foil values), used to generate contrastive explanations for the explanation in the context
@@ -885,8 +888,8 @@ class CamBuilder:
             data_name = data_names[i]
             if contrastive_foil is None:
                 title_str = ("CAM for class '" + self.class_names[target_class] + "' (confidence = " +
-                             str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label " +
-                             self.class_names[data_labels[i]])
+                             str(np.round(predicted_probs[i] * 100, 2)) + "%) - true label '" +
+                             self.class_names[data_labels[i]] + "'")
             else:
                 title_str = ("Why '" + self.class_names[target_class] + "' (confidence = " +
                              str(np.round(predicted_probs[i][0] * 100, 2)) + "%), rather than '" +
@@ -1081,11 +1084,11 @@ class CamBuilder:
         """
 
         if contrastive_foil is None:
-            title = ("'" + item_name + "': CAM for class '" + self.class_names[target_class] + "' (confidence = " +
-                     str(np.round(predicted_probs[item_key][batch_idx] * 100, 2)) + "%) - true class " +
-                     self.class_names[data_labels[batch_idx]])
+            title = (item_name + ": CAM for class '" + self.class_names[target_class] + "' (confidence = " +
+                     str(np.round(predicted_probs[item_key][batch_idx] * 100, 2)) + "%) - true class '" +
+                     self.class_names[data_labels[batch_idx]] + "'")
         else:
-            title = ("'" + item_name + "' (true class '" + self.class_names[data_labels[batch_idx]] + "'): Why '" +
+            title = (item_name + " (true class '" + self.class_names[data_labels[batch_idx]] + "'): Why '" +
                      self.class_names[target_class] + "' (confidence = " +
                      str(np.round(predicted_probs[item_key][batch_idx][0] * 100, 2)) + "%), rather than '" +
                      self.class_names[contrastive_foil] + "' (confidence = " +
@@ -1487,11 +1490,13 @@ class CamBuilder:
         return item_key
 
     @staticmethod
-    def __check_data_names(data_names: List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor] = None) -> List[str]:
+    def __check_data_names(data_names: str | List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor] = None) \
+            -> List[str]:
         """
         Checks whether data names are provided for each item in the input data list. If not, default names are assigned.
 
-        :param data_names: (mandatory) A list of strings representing the names of the input items.
+        :param data_names: (mandatory) A string for one input or a list of strings for multiple inputs, representing the
+            names of the input items.
         :param data_list: (optional, default is None) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
             representing either a signal, an image, or a video/volume.
 
@@ -1501,4 +1506,7 @@ class CamBuilder:
 
         if data_names is None:
             data_names = ["item" + str(i) for i in range(len(data_list))]
+        else:
+            if isinstance(data_names, str):
+                data_names = [data_names]
         return data_names
