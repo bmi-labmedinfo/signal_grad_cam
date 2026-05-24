@@ -1460,7 +1460,7 @@ class CamBuilder:
 
         :return:
             - frames: A list of np.ndarrays representing frames to be saved as a GIF animation. This parameter should be
-            provided only for 3D (video/volume) explanations and it is set to None for 1D or 2D maps.
+            provided only for 3D (video/volume) explanations, and it is set to None for 1D or 2D maps.
         """
         frames = []
         norm = plt.Normalize(vmin=cam.min(), vmax=cam.max())
@@ -1482,7 +1482,8 @@ class CamBuilder:
                     output_slice = ((1 - alpha) * video_slice + alpha * cam_slice).astype(np.uint8)
                 except ValueError:
                     video_slice = np.transpose(video_slice, (1, 2, 0))
-                    output_slice = ((1 - alpha) * video_slice + alpha * cam_slice).astype(np.uint8)
+                    output_slice = (1 - alpha) * video_slice + alpha * cam_slice
+                    output_slice = output_slice.astype(np.uint8)
             ax.imshow(output_slice)
             ax.set_title(title_str)
 
