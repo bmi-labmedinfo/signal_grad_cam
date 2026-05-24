@@ -308,6 +308,9 @@ class CamBuilder:
             of the CAM overlay.
         """
 
+        # Check data names
+        data_names = self.__check_data_names(data_names, data_list)
+
         # Check input types
         data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
             self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
@@ -346,7 +349,7 @@ class CamBuilder:
 
                                 self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names=time_names,
                                                 axes_names=axes_names)
-                                data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
+                                data_name = data_names[batch_idx]
                                 plt.title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
                                                                predicted_probs_dict, contrastive_foil))
 
@@ -354,9 +357,7 @@ class CamBuilder:
                             self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
                                                 contrastive_foil)
                         else:
-                            item_key = self.__get_item_key(explainer_type, target_layer, target_class,
-                                                           contrastive_foil)
-                            data_names = self.__check_data_names(data_names, data_list)
+                            item_key = self.get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
 
                             self.__display_output(data_labels=data_labels, target_class=target_class,
                                                   explainer_type=explainer_type, target_layer=target_layer,
@@ -446,6 +447,9 @@ class CamBuilder:
             of the inferno-colored markers in the plots.
         """
 
+        # Check data names
+        data_names = self.__check_data_names(data_names, data_list)
+
         # Check input types
         data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
             self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
@@ -483,7 +487,7 @@ class CamBuilder:
                                 minimum = np.min(cam)
                                 maximum = np.max(cam)
 
-                                data_name = data_names[batch_idx] if data_names is not None else "item" + str(batch_idx)
+                                data_name = data_names[batch_idx]
                                 desired_channels = desired_channels if desired_channels is not None else range(cam.shape[1])
                                 for j in range(len(desired_channels)):
                                     channel = desired_channels[j]
@@ -510,9 +514,7 @@ class CamBuilder:
                                 self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
                                                     contrastive_foil, data_name, is_channel=True)
                         else:
-                            item_key = self.__get_item_key(explainer_type, target_layer, target_class,
-                                                           contrastive_foil)
-                            data_names = self.__check_data_names(data_names, data_list)
+                            item_key = self.get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
 
                             for channel in range(data_list[0].shape[video_channel_idx]):
                                 data_list_channel = [np.take(data, [channel], axis=video_channel_idx) for data in data_list]
@@ -528,6 +530,27 @@ class CamBuilder:
                                                       video_fps_list=video_fps_list, video_list=data_list_channel,
                                                       channel_name=channel_name,
                                                       show_single_video_frames=show_single_video_frames)
+
+    @staticmethod
+    def get_item_key(explainer_type: str, target_layer: str, target_class: int, contrastive_foil: int | float) -> str:
+        """
+        Builds a string key to retrieve CAMs, probabilities and ranges from the corresponding dictionaries.
+
+        :param explainer_type: (mandatory) A string representing the desired algorithm for the explanation. This string
+            should identify one of the CAM algorithms allowed, as listed by the class constructor
+        :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
+            identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
+            used to retrieve the layer from the class attributes.
+        :param target_class: (mandatory) An integer representing the target class for the explanation.
+        :param contrastive_foil: (mandatory) An integer specifying the foil class for classification
+            tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
+            contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
+            explanation would follow the classical paradigm.
+
+        :return:
+            - item_key: A string representing the considered setting (defined by algorithm, target layer, and target
+            class).
+        """
 
     def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
             -> Dict[str, torch.nn.Module | tf.keras.layers.Layer | Any]:
@@ -924,6 +947,10 @@ class CamBuilder:
             else:
                 if video_list is not None:
                     video = video_list[i]
+                    if isinstance(video, torch.Tensor):
+                        video = video.detach().cpu().numpy()
+                    elif isinstance(video, tf.Tensor):
+                        video = video.numpy()
                     if channel_name is None:
                         is_overlapped = True
                 else:
@@ -978,7 +1005,7 @@ class CamBuilder:
         """
         batch_idx = target_item_ids[i]
         item = data_list[batch_idx]
-        item_key = self.__get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
+        item_key = self.get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
         cam = cams_dict[item_key][batch_idx]
 
         try:
@@ -1124,7 +1151,7 @@ class CamBuilder:
             explained.
         :param is_overlapped: (optional, default is False) A boolean flag indicating whether the CAM frames are
             overlapped onto the original video frames. Only for 3D CAMs.
-        : param show_single_video_frames: (optional, default is False) A boolean flag indicating whether to store single
+        :param show_single_video_frames: (optional, default is False) A boolean flag indicating whether to store single
             frames with the corresponding CAM. For 3D CAMs only.
         :param channel_name: (optional, default is None) A string representing the name of the channel being explained.
         """
@@ -1462,28 +1489,6 @@ class CamBuilder:
             plt.close(fig)
         return frames
 
-    @staticmethod
-    def __get_item_key(explainer_type: str, target_layer: str, target_class: int,
-                       contrastive_foil: int | float) -> str:
-        """
-        Builds a string key to retrieve CAMs, probabilities and ranges from the corresponding dictionaries.
-
-        :param explainer_type: (mandatory) A string representing the desired algorithm for the explanation. This string
-            should identify one of the CAM algorithms allowed, as listed by the class constructor
-        :param target_layer: (mandatory) A string representing the target layer for the explanation. This string should
-            identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
-            used to retrieve the layer from the class attributes.
-        :param target_class: (mandatory) An integer representing the target class for the explanation.
-        :param contrastive_foil: (mandatory) An integer specifying the foil class for classification
-            tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
-            contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
-            explanation would follow the classical paradigm.
-
-        :return:
-            - item_key: A string representing the considered setting (defined by algorithm, target layer, and target
-            class).
-        """
-
         item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
         if contrastive_foil is not None:
             item_key += "_foil" + str(contrastive_foil)
@@ -1507,6 +1512,6 @@ class CamBuilder:
         if data_names is None:
             data_names = ["item" + str(i) for i in range(len(data_list))]
         else:
-            if isinstance(data_names, str):
+            if not isinstance(data_names, list):
                 data_names = [data_names]
         return data_names
