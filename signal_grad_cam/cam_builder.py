@@ -552,6 +552,11 @@ class CamBuilder:
             class).
         """
 
+        item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
+        if contrastive_foil is not None:
+            item_key += "_foil" + str(contrastive_foil)
+        return item_key
+
     def _get_layers_pool(self, show: bool = False, extend_search: bool = False) \
             -> Dict[str, torch.nn.Module | tf.keras.layers.Layer | Any]:
         """
@@ -1488,11 +1493,6 @@ class CamBuilder:
             frames.append(buf[:, :, 1:4])
             plt.close(fig)
         return frames
-
-        item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
-        if contrastive_foil is not None:
-            item_key += "_foil" + str(contrastive_foil)
-        return item_key
 
     @staticmethod
     def __check_data_names(data_names: str | List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor] = None) \
