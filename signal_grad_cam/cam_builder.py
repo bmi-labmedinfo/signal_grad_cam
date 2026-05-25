@@ -10,6 +10,7 @@ import torch
 import tensorflow as tf
 import torch.nn.functional as F
 import imageio
+import textwrap
 from typing import Callable, List, Tuple, Dict, Any, Optional
 from matplotlib.colors import Normalize
 from matplotlib.axes import Axes
@@ -384,7 +385,7 @@ class CamBuilder:
                                       time_names: List[str | float] = None,
                                       axes_names: Tuple[str | None, str | None] | List[str | None] = None,
                                       fig_size: Tuple[int, int] = None, line_width: float = 0.1,
-                                      marker_width: float = 30) -> None:
+                                      marker_width: float = 30, alpha: float = 0.3) -> None:
         """
         Displays input signal channels, coloring each with "inferno" colormat according to the corresponding CAMs. This
         visualization is useful for interpreting signal explanations with a limited number of channels. If many channels
@@ -445,6 +446,8 @@ class CamBuilder:
             the black interpolation lines in the plots.
         :param marker_width: (optional, default is 30) A numerical value representing the size in typographic points**2
             of the inferno-colored markers in the plots.
+        :param alpha: (optional, default is 0.3) A numerical value between 0 and 1 representing the transparency level
+            of the CAM overlay. Only for video/volume inputs.
         """
 
         # Check data names
@@ -529,7 +532,7 @@ class CamBuilder:
                                                       contrastive_foil=contrastive_foil,
                                                       video_fps_list=video_fps_list, video_list=data_list_channel,
                                                       channel_name=channel_name,
-                                                      show_single_video_frames=show_single_video_frames)
+                                                      show_single_video_frames=show_single_video_frames, alpha=alpha)
 
     @staticmethod
     def get_item_key(explainer_type: str, target_layer: str, target_class: int, contrastive_foil: int | float) -> str:
@@ -1438,7 +1441,7 @@ class CamBuilder:
         :param text: (mandatory) Text string to be displayed.
         :param n_characters: (optional, default is 100) The number of characters allowed per line.
         """
-        text = "\n".join(text[i:i + n_characters] for i in range(0, len(text), n_characters))
+        text = textwrap.fill(text, width=n_characters)
         print(text)
 
     def __render_3d_frames(self, cam: np.ndarray, title_str: str, bar_ranges: Tuple[np.ndarray, np.ndarray],
