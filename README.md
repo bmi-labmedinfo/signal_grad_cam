@@ -129,7 +129,8 @@ cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labe
 									  results_dir_path="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
 ```
 
-<p align="justify">You can also explore the Python scripts available in the examples directory of the repository [here](https://github.com/bmi-labmedinfo/signal_grad_cam/examples), which provide complete, ready-to-run demonstrations for both PyTorch and TensorFlow/Keras models. These examples include open-source models for signal, image and video/volume classification using 1D, 2D, and 3D CNN architectures. Moreover, these tutorials illustrate how to deploy the recently added feature contrastive explanations in each scenario.</p>
+<p align="justify">You can also explore the Python scripts available in the examples directory of the repository <a href="https://github.com/bmi-labmedinfo/signal_grad_cam/tree/main/examples">here</a>, which provide complete, ready-to-run demonstrations for both PyTorch and TensorFlow/Keras models. These examples include open-source models for signal, image and video/volume classification using 1D, 2D, and 3D CNN architectures. Moreover, these tutorials illustrate how to deploy the recently added feature contrastive explanations in each scenario.</p>
+<p align="justify">A step-by-step demonstration of SignalGrad-CAM for generating classical and contrastive explanations on image, cardiological signal, and echocardiographic video data was presented at the Medical Informatics Europe (MIE) 2026 conference. Three live scripts are now available in <a href="https://drive.google.com/drive/folders/17VKblpb7QO5HT1sBLgKRCrvh5CWlId62?usp=drive_link">Google Colab</a>.</p>
 
 See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) for a full list of proposed features (and known issues).
 
