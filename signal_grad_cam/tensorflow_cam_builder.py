@@ -20,7 +20,8 @@ class TfCamBuilder(CamBuilder):
 
     def __init__(self, model: tf.keras.Model | Any, transform_fn: Callable[[np.ndarray | tf.Tensor, *tuple[Any, ...]], tf.Tensor]
                  = None, class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
+                 ignore_channel_dim: bool = False, is_regression_network: bool = False,
+                 is_transformer_network: bool = False, model_output_index: int = None,
                  extend_search: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the TfCamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
@@ -46,6 +47,9 @@ class TfCamBuilder(CamBuilder):
             for a regression task. If set to True, the CAM will highlight both positive and negative contributions.
             While negative contributions are typically irrelevant for classification-based saliency maps, they can be
             meaningful in regression settings, as they may represent features that decrease the predicted value.
+        :param is_transformer_network: (optional, default is False) A boolean indicating whether the network is a
+            transformer-based model. If set to True, the CAM will be generated for the last hidden state of the
+            transformer, which is typically used for classification or regression tasks.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -61,6 +65,7 @@ class TfCamBuilder(CamBuilder):
                                            time_axs=time_axs, input_transposed=input_transposed,
                                            ignore_channel_dim=ignore_channel_dim,
                                            is_regression_network=is_regression_network,
+                                           is_transformer_network=is_transformer_network,
                                            model_output_index=model_output_index,
                                            extend_search=extend_search, padding_dim=padding_dim, seed=seed)
 
@@ -157,9 +162,10 @@ class TfCamBuilder(CamBuilder):
             super()._show_layer(name, layer, potential=potential)
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | tf.Tensor], target_class: int,
-                                 target_layer: tf.keras.layers.Layer, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, contrastive_foil: int | float = None,
-                                 eps: float = 1e-6) \
+                                 target_layer: tf.keras.layers.Layer, explainer_type: str,
+                                 softmax_final: bool, avoid_relu: bool = False,
+                                 extra_inputs_dict: Dict[str, Any] = None, contrastive_foil: int | float = None,
+                                 quadratic_contrastive_score: bool = False, eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -175,12 +181,20 @@ class TfCamBuilder(CamBuilder):
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the
-            model's forward method.
+        :param avoid_relu: (optional, default is False) A boolean indicating whether to avoid applying the ReLU
+            activation function to the final CAM. If True, the ReLU activation is skipped, allowing for the
+            visualization of both positive and negative contributions in the CAM. This is particularly useful for
+            regression tasks.
+        :param extra_inputs_dict: (optional, default is None) A dictionary of additional input objects required by the
+            model's forward method. Each key must be the name of a keyword parameter accepted by the forward method of
+            the model and the corresponding value is the value assigned to that parameter.
         :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
             tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
             contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
             explanation would follow the classical paradigm.
+        :param quadratic_contrastive_score: (optional, default is False) A boolean indicating whether to use a quadratic
+            contrastive cost function for the explanation. If False, the explanation will be based on a linear
+            contrastive cost function. This parameter is only relevant when the contrastive_foil is not None.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -208,14 +222,18 @@ class TfCamBuilder(CamBuilder):
         if not self.ignore_channel_dim and (is_2d_layer and len(data_list[0].shape) == 2 or not is_2d_layer
                                             and len(data_list[0].shape) == 1):
             data_list = [tf.expand_dims(x, axis=0) for x in data_list]
-        data_batch = tf.stack(data_list, axis=0)
+        if not self.is_transformer_network:
+            data_batch = tf.stack(data_list, axis=0)
+        else:
+            data_batch = tf.concat(data_list)
 
         grad_model = keras.models.Model(self.model.inputs, [target_layer.output, self.model.output])
-        extra_inputs_list = extra_inputs_list or []
+        extra_inputs_list = extra_inputs_dict or []
         with tf.GradientTape() as tape:
             self.activations, outputs = grad_model([data_batch] + extra_inputs_list)
-
-            if isinstance(outputs, list):
+            if self.is_transformer_network and hasattr(outputs, "logits"):
+                outputs = outputs.logits[:, -1, :]
+            elif isinstance(outputs, list) or isinstance(outputs, tuple):
                 outputs = outputs[self.model_output_index] if self.model_output_index is not None else outputs[0]
 
             if softmax_final:
@@ -254,7 +272,10 @@ class TfCamBuilder(CamBuilder):
                 else:
                     foil_score = tf.cast(contrastive_foil, target_scores.dtype)
                     foil_score = tf.ones_like(target_scores) * foil_score
-                target_score = target_score - foil_score
+                if not quadratic_contrastive_score:
+                    target_score = target_score - foil_score
+                else:
+                    target_score = tf.square(target_score - foil_score)
                 target_probs = tf.gather(target_probs, [target_class, contrastive_foil], axis=1)
             else:
                 target_probs = target_probs[:, target_class]
@@ -265,14 +286,16 @@ class TfCamBuilder(CamBuilder):
         is_3d_layer = is_2d_layer is None
         for i in range(len(data_list)):
             if explainer_type == "HiResCAM":
-                cam = self._get_hirecam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
+                cam = self._get_hirecam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
+                                            avoid_relu=avoid_relu)
             else:
-                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i)
+                cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
+                                            avoid_relu=avoid_relu)
             cam_list.append(cam.numpy())
 
         return cam_list, target_probs
 
-    def _get_gradcam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> tf.Tensor:
+    def _get_gradcam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int, avoid_relu: bool) -> tf.Tensor:
         """
         Compute the CAM using the vanilla Gradient-weighted Class Activation Mapping (Grad-CAM) algorithm.
 
@@ -280,6 +303,9 @@ class TfCamBuilder(CamBuilder):
         :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
+        :param avoid_relu: (mandatory) A boolean indicating whether to avoid applying the ReLU activation function to
+            the final CAM. If True, the ReLU activation is skipped, allowing for the visualization of both positive and
+             negative contributions in the CAM. This is particularly useful for regression tasks.
 
         :return:
             - cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
@@ -304,11 +330,11 @@ class TfCamBuilder(CamBuilder):
                 activations[:, i] *= weights[i]
 
         cam = tf.reduce_sum(tf.convert_to_tensor(activations), axis=-1)
-        if not self.is_regression_network:
+        if not avoid_relu:
             cam = tf.nn.relu(cam)
         return cam
 
-    def _get_hirecam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int) -> tf.Tensor:
+    def _get_hirecam_map(self, is_2d_layer: bool, is_3d_layer: bool, batch_idx: int, avoid_relu: bool) -> tf.Tensor:
         """
         Compute the CAM using the High-Resolution Class Activation Mapping (HiResCAM) algorithm.
 
@@ -316,6 +342,9 @@ class TfCamBuilder(CamBuilder):
         :param is_3d_layer: (mandatory) A boolean indicating whether the target layers 3D-convolutional layer.
         :param batch_idx: (mandatory) The index corresponding to the i-th selected item within the original input data
             list.
+        :param avoid_relu: (mandatory) A boolean indicating whether to avoid applying the ReLU activation function to
+            the final CAM. If True, the ReLU activation is skipped, allowing for the visualization of both positive and
+             negative contributions in the CAM. This is particularly useful for regression tasks.
 
         :return:
             - cam: A TensorFlow/Keras tensor representing the Class Activation Map (CAM) for the batch_idx-th input,
@@ -334,7 +363,7 @@ class TfCamBuilder(CamBuilder):
                 activations[:, i] *= gradients[:, i]
 
         cam = tf.reduce_sum(tf.convert_to_tensor(activations), axis=-1)
-        if not self.is_regression_network:
+        if not avoid_relu:
             cam = tf.nn.relu(cam)
         return cam
 

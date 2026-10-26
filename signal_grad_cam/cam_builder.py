@@ -29,7 +29,8 @@ class CamBuilder:
     def __init__(self, model: torch.nn.Module | tf.keras.Model | Any,
                  transform_fn: Callable[[np.ndarray | np.ndarray | torch.Tensor, *tuple[Any, ...]], torch.Tensor | tf.Tensor] = None,
                  class_names: List[str] = None, time_axs: int = 1, input_transposed: bool = False,
-                 ignore_channel_dim: bool = False, is_regression_network: bool = False, model_output_index: int = None,
+                 ignore_channel_dim: bool = False, is_regression_network: bool = False,
+                 is_transformer_network: bool = False, model_output_index: int = None,
                  extend_search: bool = False, padding_dim: int = None, seed: int = 11):
         """
         Initializes the CamBuilder class. The constructor also displays, if present and retrievable, the 1D- and
@@ -55,6 +56,9 @@ class CamBuilder:
             for a regression task. If set to True, the CAM will highlight both positive and negative contributions.
             While negative contributions are typically irrelevant for classification-based saliency maps, they can be
             meaningful in regression settings, as they may represent features that decrease the predicted value.
+        :param is_transformer_network: (optional, default is False) A boolean indicating whether the network is a
+            transformer-based model. If set to True, the CAM will be generated for the last hidden state of the
+            transformer, which is typically used for classification or regression tasks.
         :param model_output_index: (optional, default is None) An integer index specifying which of the model's outputs
             represents output scores (or probabilities). If there is only one output, this argument can be ignored.
         :param extend_search: (optional, default is False) A boolean flag indicating whether to deepend the search for
@@ -79,6 +83,7 @@ class CamBuilder:
         self.input_transposed = input_transposed
         self.ignore_channel_dim = ignore_channel_dim
         self.is_regression_network = is_regression_network
+        self.is_transformer_network = is_transformer_network
         self.model_output_index = model_output_index
         self.padding_dim = padding_dim
         self.original_dims = []
@@ -119,12 +124,13 @@ class CamBuilder:
     def get_cam(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
                 data_labels: int | List[int], target_classes: int | List[int],
                 explainer_types: str | List[str], target_layers: str | List[str], softmax_final: bool,
-                data_names: str | List[str] = None, contrastive_foils: int | List[int] | float | List[float] = None,
-                data_sampling_freq: float = None, dt: float = 10, channel_names: List[str | float] = None,
-                results_dir_path: str = None, aspect_factor: float = 100, data_shape_list: List[Tuple[int, int]] = None,
-                extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
-                video_fps_list: List[float] = None, show_single_video_frames: bool = False,
-                time_names: List[str | float] = None,
+                avoid_relu: bool = False, data_names: str | List[str] = None,
+                contrastive_foils: int | List[int] | float | List[float] = None,
+                quadratic_contrastive_score: bool = False, data_sampling_freq: float = None, dt: float = 10,
+                channel_names: List[str | float] = None,  results_dir_path: str = None, aspect_factor: float = 100,
+                data_shape_list: List[Tuple[int, int]] = None, extra_preprocess_inputs_list: List[List[Any]] = None,
+                extra_inputs_dict: Dict[str, Any] = None, video_fps_list: List[float] = None,
+                show_single_video_frames: bool = False, time_names: List[str | float] = None,
                 axes_names: Tuple[str | None, str | None] | List[str | None] = None, eps: float = 1e-6) \
             -> Tuple[Dict[str, List[np.ndarray]], Dict[str, np.ndarray],  Dict[str, Tuple[np.ndarray, np.ndarray]]]:
         """
@@ -135,7 +141,7 @@ class CamBuilder:
 
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
-            these instances can be either signals, an images, or a videos/volumes.
+            these instances can be either signals, images, videos/volumes, or text tokens.
         :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
             the true labels of the data to be explained.
         :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
@@ -148,12 +154,19 @@ class CamBuilder:
             should be class dictionary keys, used to retrieve each layer from the class attributes.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
+        :param avoid_relu: (optional, default is False) A boolean indicating whether to avoid applying the ReLU
+            activation function to the final CAM. If True, the ReLU activation is skipped, allowing for the
+            visualization of both positive and negative contributions in the CAM. This is particularly useful for
+            regression tasks.
         :param data_names: (optional, default is None) A string for one input or a list of strings for multiple inputs,
             representing the names of the input items.
         :param contrastive_foils: (optional, default is None) An integer or a list of integers specifying the foil
             classes for classification tasks, or a float/integer or a list of floats/integers for regression problems
             (specifying the foil values), used to generate contrastive explanations for the explanation in the context
             of Contrastive Explanations. If None, the explanation would follow the classical paradigm.
+        :param quadratic_contrastive_score: (optional, default is False) A boolean indicating whether to use a quadratic
+            contrastive cost function for the explanation. If False, the explanation will be based on a linear
+            contrastive cost function. This parameter is only relevant when the contrastive_foils is not None.
         :param data_sampling_freq: (optional, default is None) A numerical value representing the sampling frequency of
             signal inputs in samples per second.
         :param dt: (optional, default is 10) A numerical value representing the granularity of the time axis in seconds
@@ -170,8 +183,9 @@ class CamBuilder:
             number of columns.
         :param extra_preprocess_inputs_list: (optional, defaults is None) A list of lists, where the i-th sub-list
             represents the additional input objects required by the preprocessing method for the i-th input.
-        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
-            forward method.
+        :param extra_inputs_dict: (optional, default is None) A dictionary of additional input objects required by the
+            model's forward method. Each key must be the name of a keyword parameter accepted by the forward method of
+            the model and the corresponding value is the value assigned to that parameter.
         :param video_fps_list: (optional, default is None) A list of floats, representing the frames-per-second of each
             input video to be explained. For 3D CAMs only.
         :param show_single_video_frames: (optional, default is False) A boolean flag indicating whether to store single
@@ -197,7 +211,8 @@ class CamBuilder:
 
         # Check input types
         data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
-            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers,
+                                     contrastive_foils))
         for explainer_type in explainer_types:
             if explainer_type not in self.explainer_types:
                 raise ValueError("'explainer_types' should be an explainer identifier or a list of explainer "
@@ -214,13 +229,12 @@ class CamBuilder:
                         cam_list, output_probs, bar_ranges = self.__create_batched_cams(data_list, target_class,
                                                                                         target_layer, explainer_type,
                                                                                         softmax_final,
+                                                                                        avoid_relu=avoid_relu,
                                                                                         data_shape_list=data_shape_list,
-                                                                                        extra_preprocess_inputs_list=
-                                                                                        extra_preprocess_inputs_list,
-                                                                                        extra_inputs_list=
-                                                                                        extra_inputs_list,
-                                                                                        contrastive_foil=
-                                                                                        contrastive_foil,
+                                                                                        extra_preprocess_inputs_list=extra_preprocess_inputs_list,
+                                                                                        extra_inputs_dict=extra_inputs_dict,
+                                                                                        contrastive_foil=contrastive_foil,
+                                                                                        quadratic_contrastive_score=quadratic_contrastive_score,
                                                                                         eps=eps)
                         item_key = explainer_type + "_" + target_layer + "_class" + str(target_class)
                         if contrastive_foil is not None:
@@ -253,13 +267,13 @@ class CamBuilder:
                                   axes_names: Tuple[str | None, str | None] | List[str | None] = None,
                                   fig_size: Tuple[int, int] = None, alpha: float = 0.3) -> None:
         """
-        Generates a superimposition of the input data and the selected CAMs, useful for visualizing image explanations
-        and multichannel signals with numerous channels, such as frequency spectra.
-
+        Generates a superimposition of the input data and the selected CAMs, useful for visualizing image explanations,
+        multichannel signals with numerous channels - such as frequency spectra -, and videos/volumes. In the last case,
+        both per-frame/per-slice static visualization and a dynamic GIF visualization will be returned.
 
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
-            these instances can be either signals, an images, or a videos/volumes.
+            these instances can be either signals, images, videos/volumes, or text tokens.
         :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
             the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
@@ -314,7 +328,8 @@ class CamBuilder:
 
         # Check input types
         data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
-            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers,
+                                     contrastive_foils))
         if target_item_ids is None:
             target_item_ids = list(range(len(data_list)))
 
@@ -370,6 +385,135 @@ class CamBuilder:
                                                   video_fps_list=video_fps_list, video_list=data_list,
                                                   show_single_video_frames=show_single_video_frames, alpha=alpha)
 
+    def text_output_display(self, token_data_list: np.ndarray | torch.Tensor | tf.Tensor | List[str] | List[
+        np.ndarray | torch.Tensor | tf.Tensor | List[List[str]]],
+                            data_labels: int | List[int], predicted_probs_dict: Dict[str, np.ndarray],
+                            cams_dict: Dict[str, List[np.ndarray]], explainer_types: str | List[str],
+                            target_classes: int | List[int], target_layers: str | List[str],
+                            target_item_ids: List[int] = None, data_names: str | List[str] = None,
+                            contrastive_foils: int | List[int] | float | List[float] = None,
+                            grid_instructions: Tuple[int, int] = None,
+                            bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
+                            results_dir_path: str = None,
+                            axes_names: Tuple[str | None, str | None] | List[str | None] = None,
+                            fig_size: Tuple[int, int] = None) -> None:
+        """
+        Generates a bar plot of the importance scores contained in a CAM. This method is useful for textual inputs, as
+        each token is displayed on the X-axis and visually associated with its corresponding importance score.
+
+        :param token_data_list: (mandatory)  A np.ndarray, PyTorch tensor, TensorFlow tensor, or list of strings
+            representing one instance - or a list of np.ndarrays, PyTorch tensors, TensorFlow tensors, or lists of
+            strings representing multiple instances - to be explained. These instances represent the tokens of textual
+            inputs.
+        :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
+            the true labels of the data to be explained.
+        :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
+            class probabilities for each item in the input list.
+        :param cams_dict: (mandatory) A dictionary storing a list of CAMs. Each list contains CAMs for each item in the
+            input data list, corresponding to a given setting (defined by algorithm, target layer, and target class).
+        :param explainer_types: (mandatory) A string or a list of strings representing the desired algorithms for the
+            explanation. These strings should identify one of the CAM algorithms allowed, as listed by the class
+            constructor.
+        :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
+            explanation.
+        :param target_layers: (mandatory) A string or a list of strings representing the target layers for the
+            explanations. These strings should identify either PyTorch named modules, TensorFlow/Keras layers, or they
+            should be class dictionary keys, used to retrieve each layer from the class attributes.
+        :param target_item_ids: (optional, default is None) A list of integers representing the target item indices
+            among the items in the input data list.
+        :param data_names: (optional, default is None) A string for one input or a list of strings for multiple inputs,
+            representing the names of the input items.
+        :param contrastive_foils: (optional, default is None) An integer or a list of integers specifying the foil
+            classes for classification tasks, or a float/integer or a list of floats/integers for regression problems
+            (specifying the foil values), used to generate contrastive explanations for the explanation in the context
+            of Contrastive Explanations. If None, the explanation would follow the classical paradigm.
+        :param grid_instructions: (optional, default is None) A tuple of integers defining the desired tabular layout
+            for figure subplots. The expected format is number of columns (width) x number of rows (height). Unused for
+            3D CAMs.
+        :param bar_ranges_dict: A dictionary storing a tuple of np.ndarrays. Each tuple contains two np.ndarrays
+            corresponding to the minimum and maximum importance scores per CAM for each item in the input data list,
+            based on a given setting (defined by algorithm, target layer, and target class).
+        :param results_dir_path: (optional, default is None) A string representing the relative path to the directory
+            for storing results. If None, the output will be displayed in a figure.
+        :param axes_names: (optional, default is None) A tuple of strings representing names for X and Y axes,
+            respectively.
+        :param fig_size: (optional, default is None) A tuple of integers defining the dimensions of the output figure.
+            The expected format is width x height in inches.
+        """
+
+        # Check data names
+        if not all(isinstance(token_data, list) for token_data in token_data_list):
+            token_data_list = [token_data_list]
+        data_names = self.__check_data_names(data_names, token_data_list)
+
+        # Check input types
+        _, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
+            self.__check_input_types(token_data_list, data_labels, target_classes, explainer_types, target_layers,
+                                     contrastive_foils))
+        if target_item_ids is None:
+            target_item_ids = list(range(len(token_data_list)))
+
+        # Define window size
+        n_items = len(target_item_ids)
+        w, h = self.__set_grid(n_items, grid_instructions)
+        if w * h < n_items:
+            n_items = w * h
+            target_item_ids = target_item_ids[:n_items]
+
+        if fig_size is None:
+            selected_items = [token_data_list[idx] for idx in target_item_ids]
+            text_lengths = [sum(max(len(str(token)), 1) for token in item) for item in selected_items]
+            max_text_length = max(text_lengths)
+            fig_width = np.clip(0.22 * max_text_length + 6, 12, 45)
+            fig_height = 3.5 * w
+            fig_size = (fig_width, fig_height)
+
+        for explainer_type in explainer_types:
+            for target_layer in target_layers:
+                for target_class in target_classes:
+                    for contrastive_foil in contrastive_foils:
+                        plt.figure(figsize=fig_size)
+                        for i in range(n_items):
+                            cam, item, batch_idx, item_key = self.__get_data_for_plots(token_data_list, i,
+                                                                                       target_item_ids,
+                                                                                       cams_dict, explainer_type,
+                                                                                       target_layer, target_class,
+                                                                                       contrastive_foil)
+                            if not isinstance(item, list):
+                                item = [x for x in item]
+                            elif len(item) == 1:
+                                item = item[0]
+                            token_positions = np.arange(len(item))
+                            cam = cam[:, 0].astype(float)
+
+                            plt.subplot(w, h, i + 1)
+                            minimum = float(bar_ranges_dict[item_key][0][batch_idx])
+                            maximum = float(bar_ranges_dict[item_key][1][batch_idx])
+                            cam_raw = minimum + (cam / 255.0) * (maximum - minimum)
+                            norm = Normalize(vmin=minimum, vmax=maximum)
+                            colors = plt.get_cmap("inferno")(norm(cam_raw))
+                            plt.bar(token_positions, cam_raw, color=colors)
+
+                            # Adapt token font size to sequence/text length
+                            item_text_length = sum(max(len(str(token)), 1) for token in item)
+                            token_font_size = np.clip((fig_size[0] * 72 * 0.85) / (item_text_length * 0.65), 2.5,
+                                                      10)
+
+                            plt.xticks(token_positions, item, ha="center", fontsize=token_font_size)
+                            plt.xlabel(axes_names[0] if axes_names is not None and axes_names[0] is not None
+                                       else "Tokens")
+                            plt.ylabel(axes_names[1] if axes_names is not None and axes_names[1] is not None
+                                       else "Importance score")
+                            plt.axhline(0, linewidth=0.8)
+                            plt.grid(axis="y", alpha=0.3)
+                            data_name = data_names[batch_idx]
+                            plt.title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
+                                                           predicted_probs_dict, contrastive_foil))
+
+                        # Store or show CAM
+                        self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
+                                            contrastive_foil, is_barplot=True)
+
     def single_channel_output_display(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
                                       data_labels: int | List[int], predicted_probs_dict: Dict[str, np.ndarray],
                                       cams_dict: Dict[str, List[np.ndarray]], explainer_types: str | List[str],
@@ -389,11 +533,14 @@ class CamBuilder:
         """
         Displays input signal channels, coloring each with "inferno" colormat according to the corresponding CAMs. This
         visualization is useful for interpreting signal explanations with a limited number of channels. If many channels
-        are present, it is recommended to select only a subset.
+        are present, it is recommended to select only a subset. This function also works for videos/volumes, for which
+        both per-frame/per-slice static visualization and a dynamic GIF visualization will be returned for each of the
+        multichannel video/volume input.
 
         :param data_list: (mandatory) A np.ndarray, PyTorch tensor or TensorFlow tensor representing one instance - or a
             list of np.ndarrays, PyTorch tensors or TensorFlow tensors representing multiple instances - to be explained,
-            these instances can be either signals, an images, or a videos/volumes.
+            these instances can be either signals, images, or videos/volumes. The use of this function is not expected
+            for single-channel inputs including texts.
         :param data_labels: (mandatory) An integer for one input or a list of integers for multiple inputs, representing
             the true labels of the data to be explained.
         :param predicted_probs_dict: (mandatory) A dictionary storing a np.ndarray. Each array represents the inferred
@@ -455,7 +602,8 @@ class CamBuilder:
 
         # Check input types
         data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils = (
-            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers, contrastive_foils))
+            self.__check_input_types(data_list, data_labels, target_classes, explainer_types, target_layers,
+                                     contrastive_foils))
         if desired_channels is None:
             try:
                 desired_channels = list(range(data_list[0].shape[1]))
@@ -491,7 +639,8 @@ class CamBuilder:
                                 maximum = np.max(cam)
 
                                 data_name = data_names[batch_idx]
-                                desired_channels = desired_channels if desired_channels is not None else range(cam.shape[1])
+                                desired_channels = desired_channels if desired_channels is not None else (
+                                    range(cam.shape[1]))
                                 for j in range(len(desired_channels)):
                                     channel = desired_channels[j]
                                     plt.subplot(w, h, j + 1)
@@ -510,8 +659,8 @@ class CamBuilder:
                                     self.__set_axes(cam, data_sampling_freq, dt, channel_names, time_names,
                                                     axes_names=axes_names, only_x=True)
                                     plt.title(channel_names[j])
-                                plt.suptitle(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
-                                                                  predicted_probs_dict, contrastive_foil))
+                                plt.suptitle(self.__get_cam_title(data_name, target_class, data_labels, batch_idx,
+                                                                  item_key, predicted_probs_dict, contrastive_foil))
 
                                 # Store or show CAM
                                 self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
@@ -520,7 +669,8 @@ class CamBuilder:
                             item_key = self.get_item_key(explainer_type, target_layer, target_class, contrastive_foil)
 
                             for channel in range(data_list[0].shape[video_channel_idx]):
-                                data_list_channel = [np.take(data, [channel], axis=video_channel_idx) for data in data_list]
+                                data_list_channel = [np.take(data, [channel], axis=video_channel_idx) for data
+                                                     in data_list]
                                 channel_name = channel_names[channel] if channel_names is not None else str(channel)
 
                                 self.__display_output(data_labels=data_labels, target_class=target_class,
@@ -535,7 +685,8 @@ class CamBuilder:
                                                       show_single_video_frames=show_single_video_frames, alpha=alpha)
 
     @staticmethod
-    def get_item_key(explainer_type: str, target_layer: str, target_class: int, contrastive_foil: int | float) -> str:
+    def get_item_key(explainer_type: str, target_layer: str, target_class: int, contrastive_foil: int | float = None) \
+            -> str:
         """
         Builds a string key to retrieve CAMs, probabilities and ranges from the corresponding dictionaries.
 
@@ -545,10 +696,9 @@ class CamBuilder:
             identify either PyTorch named modules, TensorFlow/Keras layers, or it should be a class dictionary key,
             used to retrieve the layer from the class attributes.
         :param target_class: (mandatory) An integer representing the target class for the explanation.
-        :param contrastive_foil: (mandatory) An integer specifying the foil class for classification
+        :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
             tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
-            contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
-            explanation would follow the classical paradigm.
+            contrastive explanations for the explanation in the context of Contrastive Explanations.
 
         :return:
             - item_key: A string representing the considered setting (defined by algorithm, target layer, and target
@@ -599,9 +749,9 @@ class CamBuilder:
         print(txt)
 
     def _create_raw_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int,
-                                 target_layer: str, explainer_type: str, softmax_final: bool,
-                                 extra_inputs_list: List[Any] = None, contrastive_foil: int | float = None,
-                                 eps: float = 1e-6) \
+                                 target_layer: str, explainer_type: str, softmax_final: bool, avoid_relu: bool = False,
+                                 extra_inputs_dict: Dict[str, Any] = None, contrastive_foil: int | float = None,
+                                 quadratic_contrastive_score: bool = False, eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray]:
         """
         Retrieves raw CAMs from an input data list based on the specified settings (defined by algorithm, target layer,
@@ -617,12 +767,20 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
-        :param extra_inputs_list: (optional, defaults is None) A list of additional input objects required by the
-            model's forward method.
+        :param avoid_relu: (optional, default is False) A boolean indicating whether to avoid applying the ReLU
+            activation function to the final CAM. If True, the ReLU activation is skipped, allowing for the
+            visualization of both positive and negative contributions in the CAM. This is particularly useful for
+            regression tasks.
+        :param extra_inputs_dict: (optional, defaults is None) A dictionary of additional input objects required by the
+            model's forward method. Each key must be the name of a keyword parameter accepted by the forward method of
+            the model and the corresponding value is the value assigned to that parameter.
         :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
             tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
             contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
             explanation would follow the classical paradigm.
+        :param quadratic_contrastive_score: (optional, default is False) A boolean indicating whether to use a quadratic
+            contrastive cost function for the explanation. If False, the explanation will be based on a linear
+            contrastive cost function. This parameter is only relevant when the contrastive_foil is not None.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -671,9 +829,11 @@ class CamBuilder:
                              "it.")
 
     def __create_batched_cams(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], target_class: int, target_layer: str,
-                              explainer_type: str, softmax_final: bool, data_shape_list: List[Tuple[int, int]] = None,
-                              extra_preprocess_inputs_list: List[List[Any]] = None, extra_inputs_list: List[Any] = None,
-                              contrastive_foil: int | float = None, eps: float = 1e-6) \
+                              explainer_type: str, softmax_final: bool, avoid_relu: bool = False,
+                              data_shape_list: List[Tuple[int, int]] = None,
+                              extra_preprocess_inputs_list: List[List[Any]] = None,
+                              extra_inputs_dict: Dict[str, Any] = None, contrastive_foil: int | float = None,
+                              quadratic_contrastive_score: bool = False, eps: float = 1e-6) \
             -> Tuple[List[np.ndarray], np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Prepares the input data list and retrieves CAMs based on the specified settings (defined by algorithm, target
@@ -690,17 +850,25 @@ class CamBuilder:
             should identify one of the CAM algorithms allowed, as listed by the class constructor.
         :param softmax_final: (mandatory) A boolean indicating whether the network terminates with a Sigmoid/Softmax
             activation function.
+        :param avoid_relu: (optional, default is False) A boolean indicating whether to avoid applying the ReLU
+            activation function to the final CAM. If True, the ReLU activation is skipped, allowing for the
+            visualization of both positive and negative contributions in the CAM. This is particularly useful for
+            regression tasks.
         :param data_shape_list: (optional, default is None) A list of integer tuples storing the original input sizes,
             used to set the CAM shape after resizing during preprocessing. The expected format is number of rows x
             number of columns.
         :param extra_preprocess_inputs_list: (optional, defaults is None) A list of lists, where the i-th sub-list
             represents the additional input objects required by the preprocessing method for the i-th input.
-        :param extra_inputs_list: (optional, default is None) A list of additional input objects required by the model's
-            forward method.
+        :param extra_inputs_dict: (optional, default is None) A dictionary of additional input objects required by the
+            model's forward method. Each key must be the name of a keyword parameter accepted by the forward method of
+            the model and the corresponding value is the value assigned to that parameter.
         :param contrastive_foil: (optional, default is None) An integer specifying the foil class for classification
             tasks, or a float/integer value for regression problems (specifying the foil value), used to generate
             contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
             explanation would follow the classical paradigm.
+        :param quadratic_contrastive_score: (optional, default is False) A boolean indicating whether to use a quadratic
+            contrastive cost function for the explanation. If False, the explanation will be based on a linear
+            contrastive cost function. This parameter is only relevant when the contrastive_foil is not None.
         :param eps: (optional, default is 1e-6) A float number used in probability clamping before logarithm application
             to avoid null or None results.
 
@@ -767,8 +935,11 @@ class CamBuilder:
                                      "time.")
 
         cam_list, target_probs = self._create_raw_batched_cams(data_list, target_class, target_layer, explainer_type,
-                                                               softmax_final, extra_inputs_list=extra_inputs_list,
-                                                               contrastive_foil=contrastive_foil, eps=eps)
+                                                               softmax_final, avoid_relu=avoid_relu,
+                                                               extra_inputs_dict=extra_inputs_dict,
+                                                               contrastive_foil=contrastive_foil,
+                                                               quadratic_contrastive_score=quadratic_contrastive_score,
+                                                               eps=eps)
         self.activations = None
         self.gradients = None
         cams = np.stack(cam_list)
@@ -978,15 +1149,17 @@ class CamBuilder:
                                 data_name, frames=frames, fps=fps, is_overlapped=is_overlapped,
                                 show_single_video_frames=show_single_video_frames, channel_name=channel_name)
 
-    def __get_data_for_plots(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor], i: int, target_item_ids: List[int],
-                             cams_dict: Dict[str, List[np.ndarray]], explainer_type: str, target_layer: str,
-                             target_class: int, contrastive_foil: int) -> Tuple[np.ndarray, np.ndarray, int, str]:
+    def __get_data_for_plots(self, data_list: List[np.ndarray | torch.Tensor | tf.Tensor | List[str]], i: int,
+                             target_item_ids: List[int], cams_dict: Dict[str, List[np.ndarray]], explainer_type: str,
+                             target_layer: str, target_class: int, contrastive_foil: int) \
+            -> Tuple[np.ndarray, np.ndarray, int, str]:
         """
         Prepares input data and CAMs to be plotted, identifying the string key to retrieve CAMs, probabilities and
         ranges from the corresponding dictionaries.
 
-        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
-            representing either a signal, an image, or a video/volume.
+        :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors, or TensorFlow tensors to be explained,
+            representing either a signal, an image, a video/volume, or the tokens of a textual input. For textual inputs
+            this parameter may also correspond to a list of lists of strings representing their tokens.
         :param i: (mandatory) An integer representing the index of an item among the selected ones.
         :param target_item_ids: (optional, default is None) A list of integers representing the target item indices
             among the items in the input data list.
@@ -1027,18 +1200,19 @@ class CamBuilder:
         except Exception:
             pass
 
-        item_dims = item.shape
-        if len(item_dims) == 3:
-            if item_dims[0] == 1:
-                item = item[0]
-            elif item_dims[2] == 1:
-                item = item[:, :, 0]
-        elif len(item_dims) == 1:
-            item = item[np.newaxis, :]
+        if not isinstance(item, list):
+            item_dims = item.shape
+            if len(item_dims) == 3:
+                if item_dims[0] == 1:
+                    item = item[0]
+                elif item_dims[2] == 1:
+                    item = item[:, :, 0]
+            elif len(item_dims) == 1:
+                item = item[np.newaxis, :]
 
-        if cam.shape[1] == 1 or cam.shape[1] > 1 and self.time_axs == 0:
-            item = np.transpose(item)
-            cam = np.transpose(cam)
+            if cam.shape[1] == 1 or cam.shape[1] > 1 and self.time_axs == 0:
+                item = np.transpose(item)
+                cam = np.transpose(cam)
 
         return cam, item, batch_idx, item_key
 
@@ -1132,9 +1306,10 @@ class CamBuilder:
         return title
 
     def __display_plot(self, results_dir_path: str, explainer_type: str, target_layer: str, target_class: int,
-                       contrastive_foil: int | float, item_name: str = None, is_channel: bool = False,
-                       frames: List[np.ndarray] = None, fps: float = None, is_overlapped: bool = False,
-                       show_single_video_frames: bool = False, channel_name: str = None) -> None:
+                       contrastive_foil: int | float, item_name: str = None, is_barplot: bool = False,
+                       is_channel: bool = False, frames: List[np.ndarray] = None, fps: float = None,
+                       is_overlapped: bool = False, show_single_video_frames: bool = False, channel_name: str = None) \
+            -> None:
         """
         Show one CAM plot as a figure or as a ".png" file.
 
@@ -1151,6 +1326,8 @@ class CamBuilder:
             contrastive explanations for the explanation in the context of Contrastive Explanations. If None, the
             explanation would follow the classical paradigm.
         :param item_name: (optional, default is False) A string representing the name of an input item.
+        :param is_barplot: (optional, default is False) A boolean flag indicating whether the figure represents a bar
+            plot, to discriminate it from other display modalities.
         :param is_channel: (optional, default is False) A boolean flag indicating whether the figure represents graphs
             of multiple input channels, to discriminate it from other display modalities.
         :param frames: (mandatory) A list of np.ndarrays representing frames to be saved as a GIF animation. This
@@ -1168,8 +1345,12 @@ class CamBuilder:
             name_addon = "channel_graphs_"
             descr_addon = "single-channel "
         elif item_name is None:
-            name_addon = "results_"
-            descr_addon = "overlapped "
+            if not is_barplot:
+                name_addon = "results_"
+                descr_addon = "overlapped "
+            else:
+                name_addon = "barplot_"
+                descr_addon = "bar plot "
         else:
             name_addon = ""
             descr_addon = ""
@@ -1208,7 +1389,10 @@ class CamBuilder:
 
             out_path = os.path.join(filepath, filename)
             if frames is None:
-                plt.savefig(out_path, format="png", bbox_inches="tight", pad_inches=0, dpi=500)
+                try:
+                    plt.savefig(out_path, format="png", bbox_inches="tight", pad_inches=0, dpi=500)
+                except ValueError:
+                    plt.savefig(out_path, format="png", bbox_inches="tight", pad_inches=0, dpi=100)
             else:
                 imageio.mimsave(out_path, frames, fps=fps)
                 if show_single_video_frames:
@@ -1337,7 +1521,7 @@ class CamBuilder:
             cbar.ax.get_yaxis().set_ticks([cbar.vmin, cbar.vmax], labels=[min_str, max_str])
 
     @staticmethod
-    def __check_input_types(data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
+    def __check_input_types(data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor | str],
                             data_labels: int | List[int], target_classes: int | List[int], explainer_types: str | List[str],
                             target_layers: str | List[str], contrastive_foils: int | float | List[int | float]) \
             -> Tuple[List[np.ndarray | torch.Tensor | tf.Tensor], List[int], List[int], List[str], List[str], List[int]]:
@@ -1346,7 +1530,7 @@ class CamBuilder:
         as lists of values. If not, they are transformed into a list.
 
         :param data_list: (mandatory) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
-            representing either a signal, an image, or a video/volume.
+            representing either a signal, an image, a video/volume, or a text.
         :param data_labels: (mandatory) An integer or a list of integers representing the true labels of the data to be
             explained.
         :param target_classes: (mandatory) An integer or a list of integers representing the target classes for the
@@ -1499,7 +1683,7 @@ class CamBuilder:
         return frames
 
     @staticmethod
-    def __check_data_names(data_names: str | List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor] = None) \
+    def __check_data_names(data_names: str | List[str], data_list: List[np.ndarray | torch.Tensor | tf.Tensor | str] = None) \
             -> List[str]:
         """
         Checks whether data names are provided for each item in the input data list. If not, default names are assigned.
@@ -1507,7 +1691,7 @@ class CamBuilder:
         :param data_names: (mandatory) A string for one input or a list of strings for multiple inputs, representing the
             names of the input items.
         :param data_list: (optional, default is None) A list of np.ndarrays, PyTorch tensors or TensorFlow tensors to be explained,
-            representing either a signal, an image, or a video/volume.
+            representing either a signal, an image, a video/volume, or a text.
 
         :return:
             - data_names: A list of strings representing the names of the input items.

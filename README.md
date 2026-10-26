@@ -61,72 +61,172 @@
 
 <!-- USAGE EXAMPLES -->
 ## Usage
-<p align="justify">Here's a basic example that illustrates SignalGrad-CAM common usage.</p>
 
-<p align="justify">First, train a CNN on the data or load a pre-trained model, then instantiate `TorchCamBuilder` (if you are working with a PyTorch model) or `TfCamBuilder` (if the model is built in TensorFlow/Keras).</p>
+SignalGrad-CAM generates Grad-CAM or HiResCAM explanations for convolutional layers in PyTorch and TensorFlow/Keras models, including 1D signals and token sequences, 2D images, and 3D videos or volumes. The workflow is the same across modalities: **initialize a CAM builder**, **compute CAMs with `get_cam()`**, and, if needed, **choose a specialized visualization**.
 
-<p align="justify">Besides the model, `TorchCamBuilder` requires additional information to function effectively. For example, you may provide a list of class labels, a pre-processing function, or an index indicating which dimension corresponds to time (for signal elaboration). These attributes allow SignalGrad-CAM to be applied to a wide range of models.</p>
+### 1. Initialize a CAM builder
 
-<p align="justify">The constructor displays a list of available Grad-CAM algorithms for explanation (Grad-CAM and HiResCAM at the moment), as well as a list of layers that can be used as target for the algorithm. It also identifies any Sigmoid/Softmax layer, since its presence or absence will slightly change the algorithm's workflow.</p>
+Train or load your model, then instantiate `TorchCamBuilder` for PyTorch or `TfCamBuilder` for TensorFlow/Keras. In PyTorch, place the model in evaluation mode before passing it to the builder. Both constructors inspect the available layers and list the supported explainers (`"Grad-CAM"` and `"HiResCAM"`). Use one of the displayed convolutional layer names as `target_layers` in `get_cam()`.
 
 ```python
 import numpy as np
 import torch
 from signal_grad_cam import TorchCamBuilder
 
-# Load model
+# Replace these placeholders with your trained model and its checkpoint.
 model = YourTorchModelConstructor()
-model.load_state_dict(torch.load("path_to_your_stored_model.pt")
+model.load_state_dict(torch.load("path_to_your_stored_model.pt", map_location="cpu"))
 model.eval()
 
-# Introduce useful information
 def preprocess_fn(signal):
-   signal = torch.from_numpy(signal).float()
-   # Extra preprocessing: data resizing, reshaping, normalization...
-   return signal
-class_labels = ["Class 1", "Class 2", "Class 3"]
+    return torch.as_tensor(signal, dtype=torch.float32)
 
-# Define the CAM builder
+class_labels = ["Class 0", "Class 1", "Class 2"]
 cam_builder = TorchCamBuilder(model=model, transform_fn=preprocess_fn, class_names=class_labels, time_axs=1)
 ```
 
-<p align="justify">Now, you can use the `cam_builder` object to generate class activation maps from one single input or a list of input data using the <i>`get_cams`</i> method. You can specify multiple algorithm names, target layers, or target classes as needed. As described in each function's documentation, every input (if more than one inputs are provided) need to be rearranged into lists for versatility.</p>
+The constructor parameters are organized below by purpose. Only `model` is mandatory; the remaining parameters have defaults.
 
-<p align="justify">The function's attributes allow users to customize the visualization (e.g., setting axes ticks or labels). If a result directory path is provided, the output is stored as a '.png' file; otherwise, it is simply displayed. In all cases, the function returns dictionaries containing the requested CAMs, the model's predictions, and importance score ranges, respectively. The values of interest can be searched using the key provided by <i>`get_item_key`</i> for a give combination of explainer algorith, target layer, target class, and - if present - contrastive_foil.</p>
+#### General setup
 
-<p align="justify">Finally, several visualization tools are available to gain deeper insights into the model's behavior. Their display can be customized by adjusting features like line width and point extension (for the drawing of signals and their explanation) along with others (e.g., aspect ratio) for a more general task:</p>
+| Parameter | Default | Description                                                                               |
+| --- | --- |-------------------------------------------------------------------------------------------|
+| `model` | *Required* | Trained PyTorch or TensorFlow/Keras model to explain.                                     |
+| `transform_fn` | `None` | Function that converts and preprocesses each input into the format expected by the model. |
+| `class_names` | `None` | Class labels used in explanation titles; provide a name for every output class.      |
 
-* <p align="justify"><i>`single_channel_output_display`</i> plots the selected input channels using a color scheme that reflects the importance of each input feature.</p>
-* <p align="justify"><i>`overlapped_output_display`</i> superimposes CAMs onto the corresponding input in an image-like format, allowing users to capture the overall distribution of input importance.</p>
+#### Data layout
+
+| Parameter | Default | Description                                                                                                                                                                                                                                                             |
+| --- | --- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `time_axs` | `1` | Index of the time or sequence axis in each input; relevant to 1D signals, token sequences, and videos/volumes. It refers to the time or sequence dimension within one input, not the batch dimension (for example, `1` for a signal shaped `(channels, samples)`). |
+| `input_transposed` | `False` | Set to `True` when preprocessing or model inference transposes the original input layout.                                                                                                                                                                               |
+| `ignore_channel_dim` | `False` | Ignore the singleton channel dimension when the model expects an input without it.                                                                                                                                                                                      |
+| `padding_dim` | `None` | Pad inputs to a specified size along the configured time axis when batching variable-length data.                                                                                                                                                                       |
+
+#### Model structure
+
+| Parameter | Default | Description                                                                                        |
+| --- | --- |----------------------------------------------------------------------------------------------------|
+| `is_regression_network` | `False` | Indicate that the model performs regression rather than classification.                            |
+| `is_transformer_network` | `False` | Enable the builder's handling of supported convolutional-based transformer networks (e.g., Hyena). |
+| `model_output_index` | `None` | In case the model returns multiple outputs, selects the index of the prediction scores.            |
+
+#### Extra utils
+
+| Parameter | Default | Description                                                                                       |
+| --- | --- |---------------------------------------------------------------------------------------------------|
+| `extend_search` | `False` | Expand the search for candidate layers if the standard inspection does not find the target layer. |
+| `seed` | `11` | Seed used for reproducibility during CAM generation.                                              |
+| `use_gpu` | `False` | Request CUDA execution when available; for **PyTorch (`TorchCamBuilder`) only**.                  |
+
+
+### 2. Generate CAMs with `get_cam()`
+
+Call `get_cam()` with one input or a list of inputs. Multiple target classes, layers, and explanation algorithms can be requested in a single call. The method calculates the explanations, produces its standard CAM visualization, and returns three dictionaries: `cams_dict`, `predicted_probs_dict`, and `bar_ranges_dict` (the original minimum and maximum importance scores). Setting `results_dir_path` saves plots to disk; otherwise, they are displayed.
+
+Each returned dictionary is indexed by the same key, assembled from the explainer, layer, target class, and optional contrastive foil. Use `get_item_key()` rather than assembling the key manually.
+
+The following parameter groups mirror the `get_cam()` API. **Only the first six parameters are mandatory**; all others have defaults.
+
+#### General setup
+
+| Parameter | Description                                                                                                |
+| --- |------------------------------------------------------------------------------------------------------------|
+| `data_list` | One input array/tensor or a list of inputs to explain.                                                     |
+| `data_labels` | Ground-truth label for each input, used in figure titles.                                                  |
+| `target_classes` | Output class index or indices to explain.                                                                  |
+| `explainer_types` | Currently accepting `"Grad-CAM"`, `"HiResCAM"`, or a list of both.                                         |
+| `target_layers` | Name(s) of convolutional layers to explain, as reported by the builder.                                    |
+| `softmax_final` | `True` if the model output is already passed through Sigmoid/Softmax; `False` if the model outputs logits. |
+
+#### Explanation settings
+
+| Parameter | Default | Description                                                                                                                                                                                           |
+| --- | --- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `contrastive_foils` | `None` | Needed to generate contrastive explanations as it indicates the class(es), `Q`,  to contrast against the target class (`P`), or a reference value for regression; `None` generates conventional CAMs. |
+| `quadratic_contrastive_score` | `False` | Use the quadratic rather than linear contrastive score; relevant only when a foil is supplied.                                                                                                        |
+| `avoid_relu` | `False` | Skip the final CAM ReLU to retain negative as well as positive contributions.                                                                                                                         |
+
+#### General visualization
+
+| Parameter | Default | Description                                                                                                   |
+| --- | --- |---------------------------------------------------------------------------------------------------------------|
+| `data_names` | `None` | Human-readable names for the input items; autogenerated names in the form `Input i` are used otherwise.       |
+| `results_dir_path` | `None` | Directory for generated figures; `None` displays them without saving.                                         |
+| `axes_names` | `None` | Optional `(x_label, y_label)` to override default axis labels.                                                |
+| `data_shape_list` | `None` | Original dimensions used to resize CAMs back to each input. The shape is inferred automatically when omitted. |
+| `channel_names` | `None` | Labels for multi-channel inputs. |
+
+#### Visualization of time-varying data
+
+| Parameter | Default | Description                                                                                  |
+| --- | --- |----------------------------------------------------------------------------------------------|
+| `data_sampling_freq` | `None` | Sampling frequency in samples per second; converts sample indices into time-axis labels.     |
+| `dt` | `10` | Interval, in seconds, between labeled time-axis ticks when `data_sampling_freq` is provided. |
+| `time_names` | `None` | Custom time-axis tick labels when a sampling frequency is not supplied.                      |
+| `aspect_factor` | `100` | Controls the aspect ratio of the standard one-dimensional CAM heatmap.                       |
+
+#### Specific features for videos and volumetric data
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `video_fps_list` | `None` | Frames per second for each video, used when producing GIFs; the implementation defaults to 10 FPS if omitted. |
+| `show_single_video_frames` | `False` | Save individual frames/slices in addition to the rendered GIF. |
+
+#### Advanced preprocessing and numerical settings
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `extra_preprocess_inputs_list` | `None` | Per-input argument lists passed to `transform_fn` after the data item. |
+| `extra_inputs_dict` | `None` | Extra keyword arguments passed to the model's forward call. |
+| `eps` | `1e-6` | Clamping constant used when converting Sigmoid/Softmax probabilities into scores for gradient computation. |
+
+
+### 3. Select a visualization
+
+`get_cam()` already generates a standard CAM display. These additional methods use its returned dictionaries to produce different views **without recomputing CAMs**:
+
+- **`single_channel_output_display()`** plots individual signal or video/volume channels as curves with CAM-colored points, allowing local inspection of the importance assigned along each channel. Relevant options include `desired_channels`, `line_width`, `marker_width`, `fig_size`, and `grid_instructions`.
+- **`overlapped_output_display()`** superimposes a CAM onto the original input. It is useful for images, two-dimensional representations of multichannel signals, and video/volume frames. Relevant options include `alpha`, `fig_size`, `grid_instructions`, and `target_item_ids`.
+- **`text_output_display()`** draws a bar plot of CAM importance scores for text or other tokenized sequences, labeling each token on the x-axis and coloring its bar according to the importance score. It accepts `token_data_list` as a list of tokens for one input or a list of token lists for multiple inputs. Relevant options include `target_item_ids`, `data_names`, `grid_instructions`, `fig_size`, and `axes_names`. Token order and length must match the corresponding CAMs.
+
+These methods require the original `data_labels` and the same `explainer_types`, `target_classes`, `target_layers`, and `contrastive_foils` used in `get_cam()`. Supply `bar_ranges_dict` to retain the original importance-score scale. `grid_instructions` is passed to Matplotlib's `subplot()` as `(rows, columns)` in the current implementation: make sure the grid contains enough cells for the items or channels you want to show.
+
+#### Example: multichannel time-series explanations
+
+The following example assumes `your_numpy_data_x` contains signals of shape `(channels, samples)` and the loaded model returns **logits**, not Softmax probabilities. Replace `conv1d_layer_1` with the exact name of a convolutional layer in your model.
 
 ```python
-# Prepare data
-data_list = [x for x in your_numpy_data_x[:2]]
+# Two signals (adapt labels and names to your data).
+data_list = [np.asarray(x) for x in your_numpy_data_x[:2]]
 data_labels_list = [1, 0]
 item_names = ["Item 1", "Item 2"]
 target_classes = [0, 1]
+target_layer = "conv1d_layer_1"
 
-# Create CAMs
-cam_dict, predicted_probs_dict, score_ranges_dict = cam_builder.get_cam(data_list=data_list, data_labels=data_labels_list, 
-																		target_classes=target_classes, explainer_types="Grad-CAM", 
-																		target_layers="conv1d_layer_1", softmax_final=True,
-																		data_sampling_freq=25, dt=1, axes_names=("Time (s)", "Channels"))
+# Compute explanations.
+cam_dict, predicted_probs_dict, score_ranges_dict = cam_builder.get_cam(
+    data_list=data_list, data_labels=data_labels_list, target_classes=target_classes,
+    explainer_types="Grad-CAM", target_layers=target_layer, softmax_final=False,
+    data_names=item_names, data_sampling_freq=25, dt=1, axes_names=("Time (s)", "Channels"))
 
-# Visualize single channel importance
-selected_channels_indices = [0, 2, 10]
-cam_builder.single_channel_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
-										  cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
-										  target_layers="target_layer_name", desired_channels=selected_channels_indices, 
-										  grid_instructions=(1, len(selected_channels_indices), bar_ranges_dict=score_ranges_dict, 
-										  results_dir="path_to_your_result_directoory", data_sampling_freq=25, dt=1, line_width=0.5, 
-										  axes_names=("Time (s)", "Amplitude (mV)"))
+# Plot individual channels (choose indices present in your inputs).
+selected_channels_indices = [0, 1]
+cam_builder.single_channel_output_display(
+    data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
+    cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes,
+    target_layers=target_layer, desired_channels=selected_channels_indices,
+    bar_ranges_dict=score_ranges_dict, data_names=item_names, grid_instructions=(2, 1),
+    fig_size=(14, 8), data_sampling_freq=25, dt=1, line_width=0.5,
+    axes_names=("Time (s)", "Amplitude"))
 
-# Visualize overall importance
-cam_builder.overlapped_output_display(data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
-                                      cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes, 
-									  target_layers="target_layer_name", fig_size=(20 * len(your_data_X), 20), 
-									  grid_instructions=(len(your_data_X), 1), bar_ranges_dict=score_ranges_dict, data_names=item_names 
-									  results_dir_path="path_to_your_result_directoory", data_sampling_freq=25, dt=1)
+# Show the overall CAM as a heatmap over the input.
+cam_builder.overlapped_output_display(
+    data_list=data_list, data_labels=data_labels_list, predicted_probs_dict=predicted_probs_dict,
+    cams_dict=cam_dict, explainer_types="Grad-CAM", target_classes=target_classes,
+    target_layers=target_layer, bar_ranges_dict=score_ranges_dict, data_names=item_names,
+    fig_size=(16, 10), grid_instructions=(2, 1), data_sampling_freq=25, dt=1)
 ```
 
 <p align="justify">You can also explore the Python scripts available in the examples directory of the repository <a href="https://github.com/bmi-labmedinfo/signal_grad_cam/tree/main/examples">here</a>, which provide complete, ready-to-run demonstrations for both PyTorch and TensorFlow/Keras models. These examples include open-source models for signal, image and video/volume classification using 1D, 2D, and 3D CNN architectures. Moreover, these tutorials illustrate how to deploy the recently added feature contrastive explanations in each scenario.</p>
@@ -138,9 +238,9 @@ See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) 
 <p align="justify">Compared to previous versions, SignalGrad-CAM now offers the following enhancements:</p>
 
 * <p align="justify"><i>Support for regression tasks:</i> SGrad-CAM can now handle regression-based models. Previously, substantial adjustments were required for these tasks, similar to those still needed for segmentation or generative models, now it is only required to set as True the parameter <i>`is_regression_network`</i> in the constructor function.</p>
-* <p align="justify"><i>Contrastive explanations:</i> Users can generate and visualize contrastive explanations by specifying one or more foil classes (for classification tasks) or foil values (for regression tasks) via the parameter <i>`contrastive_foils`</i>.</p>
+* <p align="justify"><i>Contrastive explanations:</i> Users can generate and visualize contrastive explanations by specifying one or more foil classes (for classification tasks) or foil values (for regression tasks) via the parameter <i>`contrastive_foils`</i>. Both linear and quadratic contrastive scoring functions are supported, with the latter enabled by setting quadratic_contrastive_score=True in get_cam().</p>
 * <p align="justify"><i>3D-CNN support for videos and volumetric data:</i> After expliciting the time axis in the constructor with the parameter <i>`time_axs`</i>, the same functions used for 1D and 2D data now work seamlessly for 3D-CNNs. Outputs include GIF files for quick visualization of 3D activation maps. For a more detailed analysis, users can also request separate PNG images for each volume slice (across the indicated time axis) or video frame using the parameter <i>`show_single_video_frames`</i>.</p>
-
+* <p align="justify"><i>Support for textual and sequential data:</i> SGrad-CAM has been extended to support text and tokenized sequences, including DNA sequences, through convolutional layers embedded in compatible transformer-based architectures. By setting is_transformer_network=True, users can generate CAMs for these models and visualize token-level importance scores using the new text_output_display() function, which associates each token with its corresponding contribution to the model prediction.</p>
 <p align="right"><a href="#top">Back To Top</a></p>
 
 
