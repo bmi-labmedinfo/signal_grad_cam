@@ -45,16 +45,23 @@ def pytorch_model_testing_next_token_prediction():
     model.eval()
 
     # Define textual input
-    text = ["ACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNAC"]
+    text = ["ACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTN"
+            "ACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTAC"
+            "GTNACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACG"
+            "TACGTNACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTN"
+            "ACGTACGTNACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTAC"
+            "GTNACGTACGTNACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTNACG"
+            "TACGTNACGTACGTNACCACGTNACGTACGTNACCAGTACGTNACGTACGTNACGTACGTAACGTACGTNACGTACGTNACGTACGTNACGTACGTNACGTACGTN"
+            "ACGTACGTNACGTACGTNACC"]
     tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
     input_ids = tokenizer(text, return_tensors="pt", add_special_tokens=False)["input_ids"]
     data_list = [input_ids]
     classes = ["[CLS]", "[SEP]", "[BOS]", "[MASK]", "[PAD]", "[RESERVED]", "[UNK]"] + bases + ["N"]
-    data_labels = [7]
+    data_labels = [8]
 
     # Draw CAMs
     cam_builder = TorchCamBuilder(model, class_names=classes, is_transformer_network=True)
-    target_classes = [7]
+    target_classes = [8]
     explainer_types = ["Grad-CAM"]
     target_layers_names = ["hyena.backbone.layers.1.mixer.short_filter"]
     cams, predicted_probs, bar_ranges = cam_builder.get_cam(data_list, data_labels=data_labels,
@@ -66,7 +73,7 @@ def pytorch_model_testing_next_token_prediction():
                                                             aspect_factor=50)
 
     # Overlap CAM on the original video
-    target_class = 7
+    target_class = 8
     comparison_algorithm = "Grad-CAM"
     token_data_list = [tokenizer.convert_ids_to_tokens(ids) for ids in input_ids]
     cam_builder.text_output_display(token_data_list=token_data_list, data_labels=data_labels,
@@ -122,7 +129,7 @@ def pytorch_model_testing():
             return self.input_ids[idx], self.labels[idx]
 
     motif = "GCGCGCGCGCGCGCGC"
-    seq_len = 300
+    seq_len = 1024
     sequence_list, label_list = [], []
     for i in range(600):
         seq = list("".join(random.choices(bases, k=seq_len)))
@@ -157,7 +164,7 @@ def pytorch_model_testing():
         acc = correct / total
         print(f"Epoch {epoch+1:2d}/{num_epochs} | Loss: {total_loss/len(train_loader):.4f} | Accuracy: {acc*100:.1f}%")
     model.eval()
-    model.to("cpu")
+    model.to(device)
 
     # Generate DNA synthetic test dataset
     seq_class0 = "".join(random.choices(bases, k=seq_len))
@@ -177,8 +184,8 @@ def pytorch_model_testing():
                                   class_names=["CG-pattern absent", "CG-pattern present"])
 
     target_classes = [1]
-    explainer_types = ["Grad-CAM"]
-    target_layers = ["backbone.backbone.layers.0.mixer.short_filter"]
+    explainer_types = ["Grad-CAM", "HiResCAM"]
+    target_layers = ["backbone.backbone.layers.0.mixer.short_filter", "backbone.backbone.layers.1.mixer.short_filter"]
     cam_results, predicted_probs, score_ranges = cam_builder.get_cam(data_list=eval_data_list,
                                                                      data_labels=eval_labels,
                                                                      target_classes=target_classes,

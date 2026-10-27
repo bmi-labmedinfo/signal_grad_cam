@@ -261,13 +261,27 @@ class TorchCamBuilder(CamBuilder):
                         target_score = (target_score - foil_score) ** 2
                 target_score.backward(retain_graph=True)
 
-                if explainer_type == "HiResCAM":
-                    cam = self._get_hirescam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
-                                                 avoid_relu=avoid_relu)
-                else:
-                    cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
-                                                avoid_relu=avoid_relu)
-                cam_list.append(cam.cpu().detach().numpy())
+                original_activations = self.activations
+                original_gradients = self.gradients
+                if self.is_transformer_network and original_gradients is not None:
+                    input_length = data_batch.shape[-1]
+                    conv_length = original_activations.shape[-1]
+                    if conv_length > input_length:
+                        trailing_gradients = original_gradients[i, :, input_length:]
+                        if torch.all(trailing_gradients == 0).item():
+                            self.activations = original_activations[..., :input_length]
+                            self.gradients = original_gradients[..., :input_length]
+                try:
+                    if explainer_type == "HiResCAM":
+                        cam = self._get_hirescam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
+                                                     avoid_relu=avoid_relu)
+                    else:
+                        cam = self._get_gradcam_map(is_2d_layer=is_2d_layer, is_3d_layer=is_3d_layer, batch_idx=i,
+                                                    avoid_relu=avoid_relu)
+                    cam_list.append(cam.cpu().detach().numpy())
+                finally:
+                    self.activations = original_activations
+                    self.gradients = original_gradients
         finally:
             activation_handle.remove()
             gradient_handle.remove()

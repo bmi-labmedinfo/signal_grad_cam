@@ -106,11 +106,11 @@ The constructor parameters are organized below by purpose. Only `model` is manda
 
 #### Model structure
 
-| Parameter | Default | Description                                                                                        |
-| --- | --- |----------------------------------------------------------------------------------------------------|
-| `is_regression_network` | `False` | Indicate that the model performs regression rather than classification.                            |
-| `is_transformer_network` | `False` | Enable the builder's handling of supported convolutional-based transformer networks (e.g., Hyena). |
-| `model_output_index` | `None` | In case the model returns multiple outputs, selects the index of the prediction scores.            |
+| Parameter | Default | Description                                                                                         |
+| --- | --- |-----------------------------------------------------------------------------------------------------|
+| `is_regression_network` | `False` | Indicate that the model performs regression rather than classification.                             |
+| `is_transformer_network` | `False` | Enable the builder's handling of transformer-like networks including convolutions (e.g., Hyena). |
+| `model_output_index` | `None` | In case the model returns multiple outputs, selects the index of the prediction scores.             |
 
 #### Extra utils
 
@@ -189,7 +189,7 @@ The following parameter groups mirror the `get_cam()` API. **Only the first six 
 
 - **`single_channel_output_display()`** plots individual signal or video/volume channels as curves with CAM-colored points, allowing local inspection of the importance assigned along each channel. Relevant options include `desired_channels`, `line_width`, `marker_width`, `fig_size`, and `grid_instructions`.
 - **`overlapped_output_display()`** superimposes a CAM onto the original input. It is useful for images, two-dimensional representations of multichannel signals, and video/volume frames. Relevant options include `alpha`, `fig_size`, `grid_instructions`, and `target_item_ids`.
-- **`text_output_display()`** draws a bar plot of CAM importance scores for text or other tokenized sequences, labeling each token on the x-axis and coloring its bar according to the importance score. It accepts `token_data_list` as a list of tokens for one input or a list of token lists for multiple inputs. Relevant options include `target_item_ids`, `data_names`, `grid_instructions`, `fig_size`, and `axes_names`. Token order and length must match the corresponding CAMs.
+- **`text_output_display()`** visualizes token-level CAM importance scores as a colored bar plot and optionally (`save_colored_text=True`) as text with red highlights whose opacity nonlinearly reflects token importance. It accepts `token_data_list` as a list of tokens for one input or a list of token lists for multiple inputs. Relevant options include `target_item_ids`, `data_names`, `grid_instructions`, `fig_size`, and `axes_names`. Token order and length must match the corresponding CAMs.
 
 These methods require the original `data_labels` and the same `explainer_types`, `target_classes`, `target_layers`, and `contrastive_foils` used in `get_cam()`. Supply `bar_ranges_dict` to retain the original importance-score scale. `grid_instructions` is passed to Matplotlib's `subplot()` as `(rows, columns)` in the current implementation: make sure the grid contains enough cells for the items or channels you want to show.
 
@@ -240,7 +240,7 @@ See the [open issues](https://github.com/bmi-labmedinfo/signal_grad_cam/issues) 
 * <p align="justify"><i>Support for regression tasks:</i> SGrad-CAM can now handle regression-based models. Previously, substantial adjustments were required for these tasks, similar to those still needed for segmentation or generative models, now it is only required to set as True the parameter <i>`is_regression_network`</i> in the constructor function.</p>
 * <p align="justify"><i>Contrastive explanations:</i> Users can generate and visualize contrastive explanations by specifying one or more foil classes (for classification tasks) or foil values (for regression tasks) via the parameter <i>`contrastive_foils`</i>. Both linear and quadratic contrastive scoring functions are supported, with the latter enabled by setting quadratic_contrastive_score=True in get_cam().</p>
 * <p align="justify"><i>3D-CNN support for videos and volumetric data:</i> After expliciting the time axis in the constructor with the parameter <i>`time_axs`</i>, the same functions used for 1D and 2D data now work seamlessly for 3D-CNNs. Outputs include GIF files for quick visualization of 3D activation maps. For a more detailed analysis, users can also request separate PNG images for each volume slice (across the indicated time axis) or video frame using the parameter <i>`show_single_video_frames`</i>.</p>
-* <p align="justify"><i>Support for textual and sequential data:</i> SGrad-CAM has been extended to support text and tokenized sequences, including DNA sequences, through convolutional layers embedded in compatible transformer-based architectures. By setting is_transformer_network=True, users can generate CAMs for these models and visualize token-level importance scores using the new text_output_display() function, which associates each token with its corresponding contribution to the model prediction.</p>
+* <p align="justify"><i>Support for textual and sequential data:</i> SGrad-CAM has been extended to support text and tokenized sequences, including DNA sequences, through convolutional layers embedded in compatible transformer-based architectures which include convolutional networks (e.g., Hyena). By setting is_transformer_network=True, users can generate CAMs for these models and visualize token-level importance scores using the new text_output_display() function, which associates each token with its corresponding contribution to the model prediction.</p>
 <p align="right"><a href="#top">Back To Top</a></p>
 
 

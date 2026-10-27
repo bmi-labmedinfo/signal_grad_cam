@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import imageio
 import textwrap
 from typing import Callable, List, Tuple, Dict, Any, Optional
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, LinearSegmentedColormap, PowerNorm
 from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -396,10 +396,12 @@ class CamBuilder:
                             bar_ranges_dict: Dict[str, Tuple[np.ndarray, np.ndarray]] = None,
                             results_dir_path: str = None,
                             axes_names: Tuple[str | None, str | None] | List[str | None] = None,
-                            fig_size: Tuple[int, int] = None) -> None:
+                            fig_size: Tuple[int, int] = None, save_colored_text: bool = True, tokens_per_line: int = 40) \
+            -> None:
         """
-        Generates a bar plot of the importance scores contained in a CAM. This method is useful for textual inputs, as
-        each token is displayed on the X-axis and visually associated with its corresponding importance score.
+        Generates a token-importance bar plot and (optionally) separate colored-text images. Each token is shown
+        with an importance-colored background, using the original CAM score range and the "inferno" colormap.
+        Multiple sequences are handled independently, with long sequences wrapped across lines.
 
         :param token_data_list: (mandatory)  A np.ndarray, PyTorch tensor, TensorFlow tensor, or list of strings
             representing one instance - or a list of np.ndarrays, PyTorch tensors, TensorFlow tensors, or lists of
@@ -439,10 +441,16 @@ class CamBuilder:
             respectively.
         :param fig_size: (optional, default is None) A tuple of integers defining the dimensions of the output figure.
             The expected format is width x height in inches.
+        :param save_colored_text: (optional, default is True) If True, also export a separate visualization
+            in which each token is highlighted using the same importance-based color scale as the CAM bar plot.
+        :param tokens_per_line: (optional, default is 80) Maximum line width, in approximate monospaced
+            character units, for wrapping tokens in the additional text visualization.
         """
 
-        # Check data names
-        if not all(isinstance(token_data, list) for token_data in token_data_list):
+        if isinstance(token_data_list, list):
+            if not token_data_list or isinstance(token_data_list[0], (str, int, np.integer)):
+                token_data_list = [token_data_list]
+        else:
             token_data_list = [token_data_list]
         data_names = self.__check_data_names(data_names, token_data_list)
 
@@ -455,6 +463,8 @@ class CamBuilder:
 
         # Define window size
         n_items = len(target_item_ids)
+        if n_items == 0:
+            return
         w, h = self.__set_grid(n_items, grid_instructions)
         if w * h < n_items:
             n_items = w * h
@@ -462,7 +472,8 @@ class CamBuilder:
 
         if fig_size is None:
             selected_items = [token_data_list[idx] for idx in target_item_ids]
-            text_lengths = [sum(max(len(str(token)), 1) for token in item) for item in selected_items]
+            text_lengths = [sum(max(len(str(token)), 1) for token in np.asarray(item).reshape(-1))
+                            for item in selected_items]
             max_text_length = max(text_lengths)
             fig_width = np.clip(0.22 * max_text_length + 6, 12, 45)
             fig_height = 3.5 * w
@@ -472,6 +483,7 @@ class CamBuilder:
             for target_layer in target_layers:
                 for target_class in target_classes:
                     for contrastive_foil in contrastive_foils:
+                        colored_text_items = []
                         plt.figure(figsize=fig_size)
                         for i in range(n_items):
                             cam, item, batch_idx, item_key = self.__get_data_for_plots(token_data_list, i,
@@ -479,18 +491,18 @@ class CamBuilder:
                                                                                        cams_dict, explainer_type,
                                                                                        target_layer, target_class,
                                                                                        contrastive_foil)
-                            if not isinstance(item, list):
-                                item = [x for x in item]
-                            elif len(item) == 1:
-                                item = item[0]
+                            item = [str(token) for token in np.asarray(item).reshape(-1)]
+                            cam = np.asarray(cam, dtype=float).reshape(-1)
+                            if len(item) != len(cam):
+                                raise ValueError(f"Item {batch_idx}: {len(item)} tokens but {len(cam)} CAM values")
                             token_positions = np.arange(len(item))
-                            cam = cam[:, 0].astype(float)
 
                             plt.subplot(w, h, i + 1)
                             minimum = float(bar_ranges_dict[item_key][0][batch_idx])
                             maximum = float(bar_ranges_dict[item_key][1][batch_idx])
                             cam_raw = minimum + (cam / 255.0) * (maximum - minimum)
-                            norm = Normalize(vmin=minimum, vmax=maximum)
+                            norm = Normalize(vmin=minimum,
+                                             vmax=maximum if maximum > minimum else minimum + 1)
                             colors = plt.get_cmap("inferno")(norm(cam_raw))
                             plt.bar(token_positions, cam_raw, color=colors)
 
@@ -510,9 +522,88 @@ class CamBuilder:
                             plt.title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx, item_key,
                                                            predicted_probs_dict, contrastive_foil))
 
-                        # Store or show CAM
+                            if save_colored_text:
+                                colored_text_items.append((item, cam_raw.copy(), data_name,
+                                                           batch_idx, item_key, minimum, maximum))
+
+                        # Store or show bar plot
                         self.__display_plot(results_dir_path, explainer_type, target_layer, target_class,
                                             contrastive_foil, is_barplot=True)
+
+                        # Store or show color-overlapped text
+                        if save_colored_text:
+                            threshold = 0.18
+                            gamma = 2.4
+                            levels = np.linspace(0, 1, 256)
+                            strengths = np.clip((levels - threshold) / (1 - threshold), 0, 1) ** gamma
+                            white_to_red = LinearSegmentedColormap.from_list("white_to_red",
+                                                                             [(1.0, 1.0 - a, 1.0 - a) for a in strengths],
+                                                                             N=256)
+                            for tokens, scores, data_name, batch_idx, item_key, minimum, maximum in colored_text_items:
+                                vmax = maximum if maximum > minimum else minimum + 1
+                                norm = Normalize(vmin=minimum, vmax=vmax)
+                                normalized_scores = np.clip(norm(scores), 0.0, 1.0)
+                                highlight_strength = np.clip((normalized_scores - threshold) / (1.0 - threshold),
+                                                             0.0, 1.0) ** gamma
+                                rows, row, cursor = [], [], 0.0
+                                for token, alpha_value in zip(tokens, highlight_strength):
+                                    token = str(token).replace("\n", "\\n").replace("\t", "\\t")
+                                    char_unit = 0.62
+                                    pad_x = 0.16
+                                    min_box_width = 0.72
+                                    text_width = max(len(token), 1) * char_unit
+                                    width = max(text_width + 2 * pad_x, min_box_width)
+                                    if row and cursor + width > tokens_per_line:
+                                        rows.append(row)
+                                        row, cursor = [], 0.0
+                                    row.append((cursor, width, token, float(alpha_value)))
+                                    cursor += width
+                                if row:
+                                    rows.append(row)
+                                fig = plt.figure(figsize=(max(10, min(22, tokens_per_line * 0.17)),
+                                                          max(2.2, len(rows) * 0.24 + 1.0)))
+                                gs = fig.add_gridspec(1, 2, width_ratios=[50, 0.7], wspace=0.08)
+                                ax = fig.add_subplot(gs[0, 0])
+                                cax = fig.add_subplot(gs[0, 1])
+                                max_x = max((x + width for row in rows for x, width, _, _ in row),
+                                            default=tokens_per_line)
+                                ax.set_xlim(0, max_x)
+                                row_step = 0.32
+                                rect_height = 0.29
+                                ax.set_ylim(0, len(rows) * row_step)
+                                ax.axis("off")
+                                for row_index, row in enumerate(rows):
+                                    y = (len(rows) - row_index - 1) * row_step
+                                    for x, width, token, alpha_value in row:
+                                        rect_y = y + (row_step - rect_height) / 2
+                                        rect_x = x + 0.01
+                                        rect_width = max(width - 0.02, 0.08)
+                                        ax.add_patch(plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
+                                                                   facecolor="red", alpha=alpha_value, linewidth=0))
+                                        text_color = "black" if alpha_value < 0.65 else "white"
+                                        ax.text(x + width / 2, y + row_step / 2, token, family="monospace", fontsize=11,
+                                                va="center", ha="center", color=text_color)
+                                ax.set_title(self.__get_cam_title(data_name, target_class, data_labels, batch_idx,
+                                        item_key, predicted_probs_dict, contrastive_foil))
+                                sm = plt.cm.ScalarMappable(norm=norm, cmap=white_to_red)
+                                sm.set_array([])
+                                colorbar = fig.colorbar(sm, cax=cax, orientation="vertical")
+                                colorbar.set_label("Importance score")
+                                colorbar.set_ticks(np.linspace(minimum, vmax, 3))
+                                colorbar.ax.tick_params(labelsize=8, pad=3)
+                                colorbar.outline.set_linewidth(0.8)
+                                if results_dir_path is not None:
+                                    os.makedirs(results_dir_path, exist_ok=True)
+                                    identifier = f"{data_name}_{explainer_type}_{target_layer}_class{target_class}"
+                                    if contrastive_foil is not None:
+                                        identifier += f"_foil{contrastive_foil}"
+                                    identifier = re.sub(r"[^A-Za-z0-9_.-]+", "_", identifier)
+                                    fig.savefig(os.path.join(results_dir_path, f"colored_text_{identifier}.png"),
+                                                dpi=170, bbox_inches="tight")
+                                    plt.close(fig)
+                                else:
+                                    plt.show()
+                                    plt.close(fig)
 
     def single_channel_output_display(self, data_list: np.ndarray | torch.Tensor | tf.Tensor | List[np.ndarray | torch.Tensor | tf.Tensor],
                                       data_labels: int | List[int], predicted_probs_dict: Dict[str, np.ndarray],

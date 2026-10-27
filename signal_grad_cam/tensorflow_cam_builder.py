@@ -281,6 +281,16 @@ class TfCamBuilder(CamBuilder):
                 target_probs = target_probs[:, target_class]
             self.gradients = tape.gradient(target_score, self.activations)
 
+            if (self.is_transformer_network and target_layer.data_format == "channels_last"
+                    and self.gradients is not None):
+                input_length = int(tf.shape(data_batch)[1].numpy())
+                conv_length = int(tf.shape(self.activations)[1].numpy())
+                if conv_length > input_length:
+                    trailing_gradients = self.gradients[:, input_length:, :]
+                    if bool(tf.reduce_all(tf.equal(trailing_gradients, 0)).numpy()):
+                        self.activations = self.activations[:, :input_length, :]
+                        self.gradients = self.gradients[:, :input_length, :]
+
         cam_list = []
         is_2d_layer = self._is_2d_layer(target_layer)
         is_3d_layer = is_2d_layer is None
